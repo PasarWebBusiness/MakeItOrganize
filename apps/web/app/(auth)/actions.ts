@@ -16,17 +16,21 @@ export async function loginAction(formData: FormData) {
   }
 
   const db = getDb();
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, email.toLowerCase())
-  });
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email.toLowerCase()))
+    .limit(1);
 
   if (!user) {
     return { error: 'Email atau password salah.' };
   }
 
-  const cred = await db.query.passwordCredentials.findFirst({
-    where: eq(passwordCredentials.userId, user.id)
-  });
+  const [cred] = await db
+    .select()
+    .from(passwordCredentials)
+    .where(eq(passwordCredentials.userId, user.id))
+    .limit(1);
 
   if (!cred || !verifyPassword(password, cred.hash)) {
     return { error: 'Email atau password salah.' };
@@ -58,9 +62,11 @@ export async function registerAction(formData: FormData) {
   const db = getDb();
   
   // Check if email exists
-  const existing = await db.query.users.findFirst({
-    where: eq(users.email, email.toLowerCase())
-  });
+  const [existing] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email.toLowerCase()))
+    .limit(1);
 
   if (existing) {
     return { error: 'Email sudah terdaftar.' };

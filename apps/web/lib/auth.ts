@@ -68,12 +68,12 @@ export async function getCurrentUser() {
   if (!sessionId) return null;
   
   const db = getDb();
-  const session = await db.query.sessions.findFirst({
-    where: eq(sessions.id, sessionId),
-    with: {
-      user: true, // We need to define relations in schema to use 'with' or just do a join
-    }
-  });
+  
+  const [session] = await db
+    .select()
+    .from(sessions)
+    .where(eq(sessions.id, sessionId))
+    .limit(1);
   
   if (!session) return null;
   
@@ -82,18 +82,11 @@ export async function getCurrentUser() {
     return null;
   }
   
-  // Actually, we don't have relations defined in schema yet.
-  // Let's do a join instead.
-  
-  const result = await db.select({
-    user: users,
-    session: sessions
-  }).from(sessions)
-    .innerJoin(users, eq(sessions.userId, users.id))
-    .where(eq(sessions.id, sessionId))
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, session.userId))
     .limit(1);
     
-  if (result.length === 0) return null;
-  
-  return result[0].user;
+  return user ?? null;
 }
