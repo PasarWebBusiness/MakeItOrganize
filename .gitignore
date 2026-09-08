@@ -1,0 +1,26 @@
+# Dependencies and builds
+node_modules/
+.next/
+dist/
+build/
+coverage/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*service-account*.json
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs and local runtime
+*.log
+tmp/
+.cache/
+
