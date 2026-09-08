@@ -31,14 +31,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  seedActivities,
-  seedFiles,
-  seedNotes,
-  seedTasks,
-  seedCourses,
-  seedCalendarEvents,
-} from '@/lib/demo-data';
+import { seedActivities, seedFiles, seedNotes, seedTasks, seedCourses, seedCalendarEvents } from '@/lib/demo-data';
+import { createTaskAction, toggleTaskAction, deleteTaskAction } from '@/app/actions/core';
 import type {
   Activity,
   CalendarEvent,
@@ -164,9 +158,9 @@ const titles: Record<
   },
 };
 
-export function WorkspaceApp({ user }: { user?: { name: string; email: string } }) {
+export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; email: string }, initialTasks?: Task[] }) {
   const [view, setView] = useState<ViewKey>('dashboard');
-  const [tasks, setTasks] = useState<Task[]>(seedTasks);
+  const [tasks, setTasks] = useState<Task[]>(initialTasks || seedTasks);
   const [notes, setNotes] = useState<Note[]>(seedNotes);
   const [files, setFiles] = useState<FileItem[]>(seedFiles);
   const [activities, setActivities] = useState<Activity[]>(seedActivities);
@@ -190,11 +184,14 @@ export function WorkspaceApp({ user }: { user?: { name: string; email: string } 
   const addActivity = (activity: Activity) =>
     setActivities((current) => [activity, ...current]);
 
-  const addTask = (rawTitle = taskTitle, course = taskCourse) => {
+  const addTask = async (rawTitle = taskTitle, course = taskCourse) => {
     const clean = rawTitle.trim();
     if (!clean) return null;
+    
+    // Optimistic UI update
+    const optimisticId = crypto.randomUUID();
     const task: Task = {
-      id: crypto.randomUUID(),
+      id: optimisticId,
       title: clean,
       course,
       due: taskDue || 'Belum dijadwalkan',
@@ -202,7 +199,9 @@ export function WorkspaceApp({ user }: { user?: { name: string; email: string } 
       priority: taskPriority,
       status: 'todo',
     };
+    
     setTasks((current) => [task, ...current]);
+    
     addActivity({
       id: crypto.randomUUID(),
       actor: 'Kamu',
@@ -212,23 +211,48 @@ export function WorkspaceApp({ user }: { user?: { name: string; email: string } 
       status: 'success',
       authorization: 'User action',
     });
+    
     setTaskTitle('');
     setTaskDue('');
     setTaskPriority('medium');
     setCreateOpen(false);
+    
+    // Server execution
+    try {
+      const realId = await createTaskAction({
+        title: clean,
+        courseId: undefined, // Default to null for now as course names aren't mapped to IDs yet
+        dueAt: taskDue ? new Date(taskDue).getTime() : undefined,
+        priority: taskPriority,
+      });
+      // Replace optimistic ID with real ID silently
+      setTasks(current => current.map(t => t.id === optimisticId ? { ...t, id: realId } : t));
+    } catch (e) {
+      console.error(e);
+      // Optional: rollback on failure
+    }
+    
     return task;
   };
 
-  const toggleTask = (id: string) =>
+  const toggleTask = (id: string) => {
+    const target = tasks.find((t) => t.id === id);
+    if (!target) return;
+    const newStatus = target.status === 'done' ? 'todo' : 'done';
+    
+    // Optimistic UI
     setTasks((current) =>
       current.map((task) =>
-        task.id === id
-          ? { ...task, status: task.status === 'done' ? 'todo' : 'done' }
-          : task,
+        task.id === id ? { ...task, status: newStatus } : task,
       ),
     );
+    
+    // Server execution
+    toggleTaskAction(id, newStatus).catch(console.error);
+  };
 
   const editTask = (id: string, patch: Partial<Task>) => {
+    // Only implemented locally for now until we have an edit server action
     setTasks((current) =>
       current.map((task) => (task.id === id ? { ...task, ...patch } : task)),
     );
@@ -245,18 +269,23 @@ export function WorkspaceApp({ user }: { user?: { name: string; email: string } 
 
   const deleteTask = (id: string) => {
     const target = tasks.find((t) => t.id === id);
+    if (!target) return;
+    
+    // Optimistic UI
     setTasks((current) => current.filter((t) => t.id !== id));
-    if (target) {
-      addActivity({
-        id: crypto.randomUUID(),
-        actor: 'Kamu',
-        action: 'menghapus task',
-        resource: target.title,
-        time: 'Baru saja',
-        status: 'success',
-        authorization: 'User action',
-      });
-    }
+    
+    addActivity({
+      id: crypto.randomUUID(),
+      actor: 'Kamu',
+      action: 'menghapus task',
+      resource: target.title,
+      time: 'Baru saja',
+      status: 'success',
+      authorization: 'User action',
+    });
+    
+    // Server execution
+    deleteTaskAction(id).catch(console.error);
   };
 
   const addNote = () => {
@@ -393,10 +422,7 @@ export function WorkspaceApp({ user }: { user?: { name: string; email: string } 
       )}
       <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
         <div className="brand" aria-label="MakeItOrganize">
-          <span className="brand-mark">
-            <Check size={17} strokeWidth={3} />
-          </span>
-          <span>MakeItOrganize</span>
+          <img src="/logo.svg" alt="MakeItOrganize Logo" style={{ height: '36px', marginTop: '4px' }} />
           <button
             className="close-mobile"
             onClick={() => setMobileOpen(false)}
