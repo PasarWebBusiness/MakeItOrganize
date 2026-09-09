@@ -33,9 +33,15 @@ import {
 } from '@/components/ui/dialog';
 import { seedActivities, seedFiles, seedNotes, seedTasks, seedCourses, seedCalendarEvents } from '@/lib/demo-data';
 import {
+  archiveCourseAction,
+  createCalendarEventAction,
+  createCourseAction,
   createTaskAction,
+  deleteCalendarEventAction,
   deleteTaskAction,
   toggleTaskAction,
+  updateCalendarEventAction,
+  updateCourseAction,
   updateTaskTitleAction,
 } from '@/app/actions/core';
 import type {
@@ -164,14 +170,26 @@ const titles: Record<
   },
 };
 
-export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; email: string }, initialTasks?: Task[] }) {
+export function WorkspaceApp({
+  user,
+  initialTasks,
+  initialCourses,
+  initialCalendarEvents,
+}: {
+  user?: { name: string; email: string };
+  initialTasks?: Task[];
+  initialCourses?: Course[];
+  initialCalendarEvents?: CalendarEvent[];
+}) {
   const [view, setView] = useState<ViewKey>('dashboard');
   const [tasks, setTasks] = useState<Task[]>(initialTasks || seedTasks);
   const [notes, setNotes] = useState<Note[]>(seedNotes);
   const [files, setFiles] = useState<FileItem[]>(seedFiles);
   const [activities, setActivities] = useState<Activity[]>(seedActivities);
-  const [courses] = useState<Course[]>(seedCourses);
-  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>(seedCalendarEvents);
+  const [courses, setCourses] = useState<Course[]>(initialCourses ?? seedCourses);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>(
+    initialCalendarEvents ?? seedCalendarEvents,
+  );
   const [dark, setDark] = useState(() =>
     typeof document === 'undefined'
       ? false
@@ -180,7 +198,9 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
   const [mobileOpen, setMobileOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [taskTitle, setTaskTitle] = useState('');
-  const [taskCourse, setTaskCourse] = useState('Statistika II');
+  const [taskCourse, setTaskCourse] = useState(
+    () => initialCourses?.[0]?.name ?? 'Tanpa mata kuliah',
+  );
   const [taskDue, setTaskDue] = useState('');
   const [taskPriority, setTaskPriority] = useState<'high' | 'medium' | 'low'>('medium');
   const [query, setQuery] = useState('');
@@ -213,16 +233,6 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
     
     setTasks((current) => [task, ...current]);
     
-    addActivity({
-      id: crypto.randomUUID(),
-      actor: 'Kamu',
-      action: 'membuat task',
-      resource: clean,
-      time: 'Baru saja',
-      status: 'success',
-      authorization: 'User action',
-    });
-    
     setTaskTitle('');
     setTaskDue('');
     setTaskPriority('medium');
@@ -238,6 +248,16 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
       });
       // Replace optimistic ID with real ID silently
       setTasks(current => current.map(t => t.id === optimisticId ? { ...t, id: realId } : t));
+      addActivity({
+        id: crypto.randomUUID(),
+        actor: 'Kamu',
+        action: 'membuat task',
+        resource: clean,
+        time: 'Baru saja',
+        status: 'success',
+        authorization: 'User action',
+      });
+      return { ...task, id: realId };
     } catch (error) {
       console.error(error);
       setTasks((current) => current.filter((item) => item.id !== optimisticId));
@@ -250,9 +270,8 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
         status: 'failed',
         authorization: 'Server validation',
       });
+      return null;
     }
-    
-    return task;
   };
 
   const addTaskRef = useRef(addTask);
@@ -284,17 +303,49 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
   };
 
   const editTask = (id: string, patch: Partial<Task>) => {
+    const target = tasks.find((task) => task.id === id);
+    if (!target) return;
+
     setTasks((current) =>
       current.map((task) => (task.id === id ? { ...task, ...patch } : task)),
     );
     if (patch.title) {
-      updateTaskTitleAction(id, patch.title).catch(console.error);
+      updateTaskTitleAction(id, patch.title)
+        .then(() => {
+          addActivity({
+            id: crypto.randomUUID(),
+            actor: 'Kamu',
+            action: 'memperbarui task',
+            resource: patch.title || target.title,
+            time: 'Baru saja',
+            status: 'success',
+            authorization: 'User action',
+          });
+        })
+        .catch((error) => {
+          console.error(error);
+          setTasks((current) =>
+            current.map((task) =>
+              task.id === id ? { ...task, title: target.title } : task,
+            ),
+          );
+          addActivity({
+            id: crypto.randomUUID(),
+            actor: 'Sistem',
+            action: 'gagal memperbarui task',
+            resource: target.title,
+            time: 'Baru saja',
+            status: 'failed',
+            authorization: 'Server validation',
+          });
+        });
+      return;
     }
     addActivity({
       id: crypto.randomUUID(),
       actor: 'Kamu',
       action: 'memperbarui task',
-      resource: patch.title || tasks.find((t) => t.id === id)?.title || '',
+      resource: target.title,
       time: 'Baru saja',
       status: 'success',
       authorization: 'User action',
@@ -304,22 +355,164 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
   const deleteTask = (id: string) => {
     const target = tasks.find((t) => t.id === id);
     if (!target) return;
+    const targetIndex = tasks.findIndex((task) => task.id === id);
     
     // Optimistic UI
     setTasks((current) => current.filter((t) => t.id !== id));
     
-    addActivity({
-      id: crypto.randomUUID(),
-      actor: 'Kamu',
-      action: 'menghapus task',
-      resource: target.title,
-      time: 'Baru saja',
-      status: 'success',
-      authorization: 'User action',
-    });
-    
     // Server execution
-    deleteTaskAction(id).catch(console.error);
+    deleteTaskAction(id)
+      .then(() => {
+        addActivity({
+          id: crypto.randomUUID(),
+          actor: 'Kamu',
+          action: 'menghapus task',
+          resource: target.title,
+          time: 'Baru saja',
+          status: 'success',
+          authorization: 'User action',
+        });
+      })
+      .catch((error) => {
+        console.error(error);
+        setTasks((current) => {
+          if (current.some((task) => task.id === id)) return current;
+          const restored = [...current];
+          restored.splice(targetIndex, 0, target);
+          return restored;
+        });
+        addActivity({
+          id: crypto.randomUUID(),
+          actor: 'Sistem',
+          action: 'gagal menghapus task',
+          resource: target.title,
+          time: 'Baru saja',
+          status: 'failed',
+          authorization: 'Server validation',
+        });
+      });
+  };
+
+  const addCourse = async (input: {
+    name: string;
+    code: string;
+    lecturer: string;
+    tone: string;
+  }) => {
+    const optimisticId = crypto.randomUUID();
+    const course: Course = {
+      id: optimisticId,
+      ...input,
+      progress: 0,
+      tasks: 0,
+      files: 0,
+    };
+    setCourses((current) => [course, ...current]);
+
+    try {
+      const id = await createCourseAction(input);
+      const persisted = { ...course, id };
+      setCourses((current) =>
+        current.map((item) => (item.id === optimisticId ? persisted : item)),
+      );
+      if (taskCourse === 'Tanpa mata kuliah') setTaskCourse(input.name);
+      addActivity({
+        id: crypto.randomUUID(),
+        actor: 'Kamu',
+        action: 'membuat mata kuliah',
+        resource: input.name,
+        time: 'Baru saja',
+        status: 'success',
+        authorization: 'User action',
+      });
+      return true;
+    } catch (error) {
+      console.error(error);
+      setCourses((current) =>
+        current.filter((item) => item.id !== optimisticId),
+      );
+      return false;
+    }
+  };
+
+  const editCourse = async (
+    id: string,
+    input: { name: string; code: string; lecturer: string; tone: string },
+  ) => {
+    const target = courses.find((course) => course.id === id);
+    if (!target) return false;
+    const updated = { ...target, ...input };
+    setCourses((current) =>
+      current.map((course) => (course.id === id ? updated : course)),
+    );
+    setTasks((current) =>
+      current.map((task) =>
+        task.course === target.name ? { ...task, course: input.name } : task,
+      ),
+    );
+    if (taskCourse === target.name) setTaskCourse(input.name);
+
+    try {
+      await updateCourseAction(id, input);
+      if (selectedCourse?.id === id) setSelectedCourse(updated);
+      addActivity({
+        id: crypto.randomUUID(),
+        actor: 'Kamu',
+        action: 'memperbarui mata kuliah',
+        resource: input.name,
+        time: 'Baru saja',
+        status: 'success',
+        authorization: 'User action',
+      });
+      return true;
+    } catch (error) {
+      console.error(error);
+      setCourses((current) =>
+        current.map((course) => (course.id === id ? target : course)),
+      );
+      setTasks((current) =>
+        current.map((task) =>
+          task.course === input.name ? { ...task, course: target.name } : task,
+        ),
+      );
+      if (taskCourse === input.name) setTaskCourse(target.name);
+      return false;
+    }
+  };
+
+  const archiveCourse = async (id: string) => {
+    const target = courses.find((course) => course.id === id);
+    if (!target) return false;
+    const targetIndex = courses.findIndex((course) => course.id === id);
+    setCourses((current) => current.filter((course) => course.id !== id));
+
+    try {
+      await archiveCourseAction(id);
+      if (selectedCourse?.id === id) {
+        setSelectedCourse(null);
+        setView('courses');
+      }
+      if (taskCourse === target.name) setTaskCourse('Tanpa mata kuliah');
+      addActivity({
+        id: crypto.randomUUID(),
+        actor: 'Kamu',
+        action: 'mengarsipkan mata kuliah',
+        resource: target.name,
+        time: 'Baru saja',
+        status: 'success',
+        authorization: 'User action',
+      });
+      return true;
+    } catch (error) {
+      console.error(error);
+      setCourses((current) => {
+        if (current.some((course) => course.id === id)) return current;
+        const restored = [...current];
+        restored.splice(targetIndex, 0, target);
+        return restored;
+      });
+      return false;
+    }
   };
 
   const addNote = () => {
@@ -338,18 +531,100 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
     setNotes((all) => all.filter((n) => n.id !== id));
   };
 
-  const addCalendarEvent = (event: Omit<CalendarEvent, 'id'>) => {
-    const newEvent: CalendarEvent = { ...event, id: crypto.randomUUID() };
+  const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>) => {
+    const optimisticId = crypto.randomUUID();
+    const newEvent: CalendarEvent = { ...event, id: optimisticId };
     setCalendarEvents((all) => [...all, newEvent]);
-    addActivity({
-      id: crypto.randomUUID(),
-      actor: 'Kamu',
-      action: 'membuat event',
-      resource: event.title,
-      time: 'Baru saja',
-      status: 'success',
-      authorization: 'User action',
-    });
+    try {
+      const id = await createCalendarEventAction({
+        title: event.title,
+        date: event.date,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        courseName: event.course,
+      });
+      setCalendarEvents((all) =>
+        all.map((item) => (item.id === optimisticId ? { ...item, id } : item)),
+      );
+      addActivity({
+        id: crypto.randomUUID(),
+        actor: 'Kamu',
+        action: 'membuat event',
+        resource: event.title,
+        time: 'Baru saja',
+        status: 'success',
+        authorization: 'User action',
+      });
+      return true;
+    } catch (error) {
+      console.error(error);
+      setCalendarEvents((all) =>
+        all.filter((item) => item.id !== optimisticId),
+      );
+      return false;
+    }
+  };
+
+  const editCalendarEvent = async (id: string, patch: Omit<CalendarEvent, 'id'>) => {
+    const target = calendarEvents.find((event) => event.id === id);
+    if (!target) return false;
+    setCalendarEvents((all) =>
+      all.map((event) => (event.id === id ? { ...patch, id } : event)),
+    );
+    try {
+      await updateCalendarEventAction(id, {
+        title: patch.title,
+        date: patch.date,
+        startTime: patch.startTime,
+        endTime: patch.endTime,
+        courseName: patch.course,
+      });
+      addActivity({
+        id: crypto.randomUUID(),
+        actor: 'Kamu',
+        action: 'memperbarui event',
+        resource: patch.title,
+        time: 'Baru saja',
+        status: 'success',
+        authorization: 'User action',
+      });
+      return true;
+    } catch (error) {
+      console.error(error);
+      setCalendarEvents((all) =>
+        all.map((event) => (event.id === id ? target : event)),
+      );
+      return false;
+    }
+  };
+
+  const deleteCalendarEvent = async (id: string) => {
+    const target = calendarEvents.find((event) => event.id === id);
+    if (!target) return false;
+    const targetIndex = calendarEvents.findIndex((event) => event.id === id);
+    setCalendarEvents((all) => all.filter((event) => event.id !== id));
+    try {
+      await deleteCalendarEventAction(id);
+      addActivity({
+        id: crypto.randomUUID(),
+        actor: 'Kamu',
+        action: 'menghapus event',
+        resource: target.title,
+        time: 'Baru saja',
+        status: 'success',
+        authorization: 'User action',
+      });
+      return true;
+    } catch (error) {
+      console.error(error);
+      setCalendarEvents((all) => {
+        if (all.some((event) => event.id === id)) return all;
+        const restored = [...all];
+        restored.splice(targetIndex, 0, target);
+        return restored;
+      });
+      return false;
+    }
   };
 
   const deleteFile = (id: string) => {
@@ -417,7 +692,8 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
                 ? value.course
                 : 'Tanpa mata kuliah',
             );
-            return { id: task?.id, status: 'created', title: task?.title };
+            if (!task) throw new Error('Task gagal dibuat');
+            return { id: task.id, status: 'created', title: task.title };
           },
         },
         { signal: lifecycle.signal },
@@ -584,6 +860,9 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
             <CalendarView
               events={calendarEvents}
               onAdd={addCalendarEvent}
+              onEdit={editCalendarEvent}
+              onDelete={deleteCalendarEvent}
+              courses={courses}
             />
           )}
           {view === 'tasks' && (
@@ -608,6 +887,9 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
               onSelectCourse={(c) => navigate('course-detail', c)}
               onBack={() => { setSelectedCourse(null); navigate('courses'); }}
               onToggleTask={toggleTask}
+              onAdd={addCourse}
+              onEdit={editCourse}
+              onArchive={archiveCourse}
             />
           )}
           {view === 'files' && (

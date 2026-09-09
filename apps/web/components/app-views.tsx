@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Archive,
   ArrowLeft,
   Bell,
   BookOpen,
@@ -38,6 +39,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { CanvasBoard } from './canvas-board';
 import type {
   Activity,
@@ -279,17 +290,30 @@ function RecentFile({ icon, title, detail, tone }: { icon: string; title: string
 export function CalendarView({
   events,
   onAdd,
+  onEdit,
+  onDelete,
+  courses,
 }: {
   events: CalendarEvent[];
-  onAdd: (event: Omit<CalendarEvent, 'id'>) => void;
+  onAdd: (event: Omit<CalendarEvent, 'id'>) => Promise<boolean>;
+  onEdit: (id: string, event: Omit<CalendarEvent, 'id'>) => Promise<boolean>;
+  onDelete: (id: string) => Promise<boolean>;
+  courses: Course[];
 }) {
-  const today = new Date(2026, 8, 8); // Sep 8 2026 (demo)
+  const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
-  const [selectedDay, setSelectedDay] = useState(8);
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CalendarEvent | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
   const [newTitle, setNewTitle] = useState('');
-  const [newDate, setNewDate] = useState('2026-09-08');
+  const [newDate, setNewDate] = useState(
+    `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
+  );
   const [newTime, setNewTime] = useState('');
+  const [newEndTime, setNewEndTime] = useState('');
   const [newCourse, setNewCourse] = useState('');
 
   const year = currentMonth.getFullYear();
@@ -310,19 +334,47 @@ export function CalendarView({
   const selectedDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
   const selectedEvents = events.filter((e) => e.date === selectedDateStr);
 
-  const handleCreate = () => {
+  const openCreate = () => {
+    setEditingEvent(null);
+    setNewTitle('');
+    setNewDate(selectedDateStr);
+    setNewTime('');
+    setNewEndTime('');
+    setNewCourse('');
+    setFormError('');
+    setCreateOpen(true);
+  };
+
+  const openEdit = (event: CalendarEvent) => {
+    setEditingEvent(event);
+    setNewTitle(event.title);
+    setNewDate(event.date);
+    setNewTime(event.startTime || '');
+    setNewEndTime(event.endTime || '');
+    setNewCourse(event.course || '');
+    setFormError('');
+    setCreateOpen(true);
+  };
+
+  const handleSave = async () => {
     if (!newTitle.trim()) return;
-    onAdd({
-      title: newTitle,
+    setSaving(true);
+    setFormError('');
+    const nextEvent: Omit<CalendarEvent, 'id'> = {
+      title: newTitle.trim(),
       date: newDate,
       startTime: newTime || undefined,
+      endTime: newEndTime || undefined,
       course: newCourse || undefined,
       type: 'event',
-    });
-    setNewTitle('');
-    setNewTime('');
-    setNewCourse('');
-    setCreateOpen(false);
+      color: 'blue',
+    };
+    const success = editingEvent
+      ? await onEdit(editingEvent.id, nextEvent)
+      : await onAdd(nextEvent);
+    setSaving(false);
+    if (success) setCreateOpen(false);
+    else setFormError('Event tidak dapat disimpan. Periksa waktu lalu coba lagi.');
   };
 
   const isToday = (day: number) =>
@@ -344,7 +396,7 @@ export function CalendarView({
           <div>
             <button className="view-pill active">Bulan</button>
             <button className="view-pill" disabled title="Tampilan minggu masih dalam pengembangan">Minggu</button>
-            <Button onClick={() => setCreateOpen(true)}>
+            <Button onClick={openCreate}>
               <Plus size={16} /> Event
             </Button>
           </div>
@@ -397,6 +449,14 @@ export function CalendarView({
                 )}
                 {evt.course && <small>{evt.course}</small>}
               </div>
+              <div className="agenda-event-actions">
+                <button onClick={() => openEdit(evt)} aria-label={`Edit ${evt.title}`}>
+                  <Pencil size={14} />
+                </button>
+                <button onClick={() => setDeleteTarget(evt)} aria-label={`Hapus ${evt.title}`}>
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
           ))
         ) : (
@@ -410,7 +470,7 @@ export function CalendarView({
           </div>
           <span>Siapkan</span>
         </div>
-        <Button className="agenda-add" variant="outline" onClick={() => setCreateOpen(true)}>
+        <Button className="agenda-add" variant="outline" onClick={openCreate}>
           <Plus size={15} /> Tambah event
         </Button>
       </aside>
@@ -420,12 +480,13 @@ export function CalendarView({
         <div className="modal-overlay">
           <div className="modal-card">
             <div className="modal-head">
-              <strong>Tambah event</strong>
+              <strong>{editingEvent ? 'Edit event' : 'Tambah event'}</strong>
               <button onClick={() => setCreateOpen(false)} aria-label="Tutup">
                 <X size={18} />
               </button>
             </div>
             <div className="form-stack">
+              {formError && <div className="auth-error" role="alert">{formError}</div>}
               <label>
                 Judul
                 <input
@@ -440,28 +501,60 @@ export function CalendarView({
                   <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
                 </label>
                 <label>
-                  Waktu (opsional)
+                  Mulai (opsional)
                   <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
                 </label>
               </div>
               <label>
+                Selesai (opsional)
+                <input type="time" value={newEndTime} onChange={(e) => setNewEndTime(e.target.value)} />
+              </label>
+              <label>
                 Mata kuliah (opsional)
                 <select value={newCourse} onChange={(e) => setNewCourse(e.target.value)}>
                   <option value="">Tanpa mata kuliah</option>
-                  <option>Statistika II</option>
-                  <option>Manajemen Operasi</option>
-                  <option>Pemrograman Web</option>
-                  <option>Metode Penelitian</option>
+                  {courses.map((course) => (
+                    <option key={course.id} value={course.name}>{course.name}</option>
+                  ))}
                 </select>
               </label>
             </div>
             <div className="modal-footer">
               <Button variant="ghost" onClick={() => setCreateOpen(false)}>Batal</Button>
-              <Button onClick={handleCreate} disabled={!newTitle.trim()}>Simpan event</Button>
+              <Button onClick={() => void handleSave()} disabled={saving || !newTitle.trim()}>
+                {saving ? 'Menyimpan…' : 'Simpan event'}
+              </Button>
             </div>
           </div>
         </div>
       )}
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus event?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.title} akan dihapus dari kalender lokal workspace.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (deleteTarget) void onDelete(deleteTarget.id);
+                setDeleteTarget(null);
+              }}
+            >
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -668,6 +761,9 @@ export function CoursesView({
   onSelectCourse,
   onBack,
   onToggleTask,
+  onAdd,
+  onEdit,
+  onArchive,
 }: {
   courses: Course[];
   tasks: Task[];
@@ -678,8 +774,69 @@ export function CoursesView({
   onSelectCourse: (course: Course) => void;
   onBack: () => void;
   onToggleTask: (id: string) => void;
+  onAdd: (course: {
+    name: string;
+    code: string;
+    lecturer: string;
+    tone: string;
+  }) => Promise<boolean>;
+  onEdit: (
+    id: string,
+    course: { name: string; code: string; lecturer: string; tone: string },
+  ) => Promise<boolean>;
+  onArchive: (id: string) => Promise<boolean>;
 }) {
   const [tab, setTab] = useState<'ringkasan' | 'tugas' | 'file' | 'catatan'>('ringkasan');
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<Course | null>(null);
+  const [name, setName] = useState('');
+  const [code, setCode] = useState('');
+  const [lecturer, setLecturer] = useState('');
+  const [tone, setTone] = useState('blue');
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const openCreate = () => {
+    setEditingCourse(null);
+    setName('');
+    setCode('');
+    setLecturer('');
+    setTone('blue');
+    setFormError('');
+    setEditorOpen(true);
+  };
+
+  const openEdit = (course: Course) => {
+    setEditingCourse(course);
+    setName(course.name);
+    setCode(course.code === 'TANPA KODE' ? '' : course.code);
+    setLecturer(course.lecturer === 'Dosen belum diatur' ? '' : course.lecturer);
+    setTone(course.tone);
+    setFormError('');
+    setEditorOpen(true);
+  };
+
+  const saveCourse = async () => {
+    if (!name.trim()) {
+      setFormError('Nama mata kuliah wajib diisi.');
+      return;
+    }
+    setSaving(true);
+    setFormError('');
+    const input = {
+      name: name.trim(),
+      code: code.trim(),
+      lecturer: lecturer.trim(),
+      tone,
+    };
+    const success = editingCourse
+      ? await onEdit(editingCourse.id, input)
+      : await onAdd(input);
+    setSaving(false);
+    if (success) setEditorOpen(false);
+    else setFormError('Perubahan tidak dapat disimpan. Coba lagi.');
+  };
 
   if (selectedCourse) {
     const courseTasks = tasks.filter((t) => t.course === selectedCourse.name);
@@ -849,13 +1006,27 @@ export function CoursesView({
   }
 
   return (
-    <div className="course-grid">
-      {courses.map((course) => (
-        <article className={`course-card ${course.tone}`} key={course.id}>
+    <>
+      <div className="course-list-toolbar">
+        <div>
+          <strong>{courses.length} mata kuliah aktif</strong>
+          <span>Data tersimpan di personal workspace</span>
+        </div>
+        <Button onClick={openCreate}>
+          <Plus size={16} /> Mata kuliah baru
+        </Button>
+      </div>
+      <div className="course-grid">
+        {courses.map((course) => (
+          <article className={`course-card ${course.tone}`} key={course.id}>
           <div className="course-top">
             <span>{course.code}</span>
-            <button aria-label={`Menu ${course.name}`}>
-              <MoreHorizontal size={18} />
+            <button
+              aria-label={`Edit ${course.name}`}
+              onClick={() => openEdit(course)}
+              title="Edit mata kuliah"
+            >
+              <Pencil size={17} />
             </button>
           </div>
           <div className="course-monogram">
@@ -882,9 +1053,129 @@ export function CoursesView({
               Buka <ChevronRight size={15} />
             </button>
           </footer>
-        </article>
-      ))}
-    </div>
+          </article>
+        ))}
+        {courses.length === 0 && (
+          <div className="panel course-empty-panel">
+            <EmptyState
+              icon={BookOpen}
+              title="Belum ada mata kuliah"
+              text="Tambahkan mata kuliah agar tugas, catatan, file, dan jadwal memiliki konteks yang sama."
+              action={
+                <Button size="sm" onClick={openCreate}>
+                  <Plus size={14} /> Mata kuliah baru
+                </Button>
+              }
+            />
+          </div>
+        )}
+      </div>
+
+      {editorOpen && (
+        <div className="modal-overlay">
+          <div className="modal-card" aria-labelledby="course-editor-title">
+            <div className="modal-head">
+              <strong id="course-editor-title">
+                {editingCourse ? 'Edit mata kuliah' : 'Mata kuliah baru'}
+              </strong>
+              <button onClick={() => setEditorOpen(false)} aria-label="Tutup">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="form-stack">
+              {formError && <div className="auth-error" role="alert">{formError}</div>}
+              <label>
+                Nama mata kuliah
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Contoh: Statistika II"
+                  maxLength={120}
+                />
+              </label>
+              <div className="form-row-2">
+                <label>
+                  Kode
+                  <input
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
+                    placeholder="STAT-204"
+                    maxLength={32}
+                  />
+                </label>
+                <label>
+                  Warna
+                  <select value={tone} onChange={(event) => setTone(event.target.value)}>
+                    <option value="blue">Biru</option>
+                    <option value="coral">Koral</option>
+                    <option value="amber">Amber</option>
+                    <option value="purple">Ungu</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                Dosen
+                <input
+                  value={lecturer}
+                  onChange={(event) => setLecturer(event.target.value)}
+                  placeholder="Nama dosen (opsional)"
+                  maxLength={120}
+                />
+              </label>
+            </div>
+            <div className="modal-footer course-modal-footer">
+              {editingCourse && (
+                <Button
+                  variant="ghost"
+                  className="danger-action"
+                  onClick={() => {
+                    setEditorOpen(false);
+                    setArchiveTarget(editingCourse);
+                  }}
+                >
+                  <Archive size={15} /> Arsipkan
+                </Button>
+              )}
+              <span className="modal-footer-spacer" />
+              <Button variant="ghost" onClick={() => setEditorOpen(false)}>
+                Batal
+              </Button>
+              <Button onClick={() => void saveCourse()} disabled={saving || !name.trim()}>
+                {saving ? 'Menyimpan…' : 'Simpan'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <AlertDialog
+        open={Boolean(archiveTarget)}
+        onOpenChange={(open) => {
+          if (!open) setArchiveTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Arsipkan mata kuliah?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {archiveTarget?.name} akan hilang dari daftar aktif. Tugas dan resource yang terhubung tidak ikut dihapus.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (archiveTarget) void onArchive(archiveTarget.id);
+                setArchiveTarget(null);
+              }}
+            >
+              Arsipkan
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

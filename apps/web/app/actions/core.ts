@@ -1,10 +1,10 @@
 'use server';
 
 import { getDb } from '@/db';
-import { courses, tasks, workspaces } from '@/db/schema';
+import { calendarEvents, courses, tasks, workspaces } from '@/db/schema';
 import { getCurrentUser } from '@/lib/auth';
 import { TaskStatus } from '@/lib/types';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, isNull } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 async function getPersonalWorkspaceId(userId: string) {
@@ -15,6 +15,321 @@ async function getPersonalWorkspaceId(userId: string) {
     .where(and(eq(workspaces.ownerId, userId), eq(workspaces.type, 'personal')))
     .limit(1);
   return ws?.id;
+}
+
+const priorities = new Set(['high', 'medium', 'low']);
+const taskStatuses = new Set<TaskStatus>([
+  'todo',
+  'in_progress',
+  'done',
+  'cancelled',
+]);
+const courseTones = new Set(['coral', 'amber', 'blue', 'purple']);
+
+function requireText(value: string, field: string, maxLength = 160) {
+  const clean = value.trim();
+  if (!clean) throw new Error(`${field} wajib diisi`);
+  if (clean.length > maxLength) {
+    throw new Error(`${field} maksimal ${maxLength} karakter`);
+  }
+  return clean;
+}
+
+function jakartaDate(date: string, time = '00:00') {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
+    throw new Error('Tanggal atau waktu tidak valid');
+  }
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  const calendarCheck = new Date(Date.UTC(year, month - 1, day));
+  if (
+    calendarCheck.getUTCFullYear() !== year ||
+    calendarCheck.getUTCMonth() !== month - 1 ||
+    calendarCheck.getUTCDate() !== day ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    throw new Error('Tanggal atau waktu tidak valid');
+  }
+  const value = new Date(Date.UTC(year, month - 1, day, hour - 7, minute));
+  if (Number.isNaN(value.getTime())) throw new Error('Tanggal atau waktu tidak valid');
+  return value;
+}
+
+async function findCourseId(
+  workspaceId: string,
+  courseName?: string,
+) {
+  if (!courseName) return null;
+  const db = getDb();
+  const [course] = await db
+    .select({ id: courses.id })
+    .from(courses)
+    .where(
+      and(
+        eq(courses.workspaceId, workspaceId),
+        eq(courses.name, courseName),
+        isNull(courses.deletedAt),
+      ),
+    )
+    .limit(1);
+  return course?.id ?? null;
+}
+
+export async function fetchUserCourses() {
+  const user = await getCurrentUser();
+  if (!user) return [];
+
+  const workspaceId = await getPersonalWorkspaceId(user.id);
+  if (!workspaceId) return [];
+
+  const db = getDb();
+  return db
+    .select({
+      id: courses.id,
+      name: courses.name,
+      code: courses.code,
+      lecturer: courses.lecturer,
+      color: courses.color,
+      createdAt: courses.createdAt,
+    })
+    .from(courses)
+    .where(and(eq(courses.workspaceId, workspaceId), isNull(courses.deletedAt)))
+    .orderBy(desc(courses.createdAt));
+}
+
+export async function createCourseAction(data: {
+  name: string;
+  code?: string;
+  lecturer?: string;
+  tone?: string;
+}) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Unauthorized');
+
+  const workspaceId = await getPersonalWorkspaceId(user.id);
+  if (!workspaceId) throw new Error('No personal workspace found');
+
+  const name = requireText(data.name, 'Nama mata kuliah', 120);
+  const code = data.code?.trim().slice(0, 32) || null;
+  const lecturer = data.lecturer?.trim().slice(0, 120) || null;
+  const tone = data.tone && courseTones.has(data.tone) ? data.tone : 'blue';
+  const db = getDb();
+
+  const [duplicate] = await db
+    .select({ id: courses.id })
+    .from(courses)
+    .where(
+      and(
+        eq(courses.workspaceId, workspaceId),
+        eq(courses.name, name),
+        isNull(courses.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (duplicate) throw new Error('Mata kuliah dengan nama ini sudah ada');
+
+  const id = crypto.randomUUID();
+  await db.insert(courses).values({
+    id,
+    workspaceId,
+    name,
+    code,
+    lecturer,
+    color: tone,
+  });
+
+  revalidatePath('/');
+  return id;
+}
+
+export async function updateCourseAction(
+  courseId: string,
+  data: { name: string; code?: string; lecturer?: string; tone?: string },
+) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Unauthorized');
+
+  const workspaceId = await getPersonalWorkspaceId(user.id);
+  if (!workspaceId) throw new Error('No personal workspace found');
+
+  const name = requireText(data.name, 'Nama mata kuliah', 120);
+  const tone = data.tone && courseTones.has(data.tone) ? data.tone : 'blue';
+  const db = getDb();
+  const [duplicate] = await db
+    .select({ id: courses.id })
+    .from(courses)
+    .where(
+      and(
+        eq(courses.workspaceId, workspaceId),
+        eq(courses.name, name),
+        isNull(courses.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (duplicate && duplicate.id !== courseId) {
+    throw new Error('Mata kuliah dengan nama ini sudah ada');
+  }
+  await db
+    .update(courses)
+    .set({
+      name,
+      code: data.code?.trim().slice(0, 32) || null,
+      lecturer: data.lecturer?.trim().slice(0, 120) || null,
+      color: tone,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(courses.id, courseId),
+        eq(courses.workspaceId, workspaceId),
+        isNull(courses.deletedAt),
+      ),
+    );
+
+  revalidatePath('/');
+}
+
+export async function archiveCourseAction(courseId: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Unauthorized');
+
+  const workspaceId = await getPersonalWorkspaceId(user.id);
+  if (!workspaceId) throw new Error('No personal workspace found');
+
+  const db = getDb();
+  await db
+    .update(courses)
+    .set({ deletedAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(courses.id, courseId),
+        eq(courses.workspaceId, workspaceId),
+        isNull(courses.deletedAt),
+      ),
+    );
+
+  revalidatePath('/');
+}
+
+export async function fetchUserCalendarEvents() {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const workspaceId = await getPersonalWorkspaceId(user.id);
+  if (!workspaceId) return [];
+
+  const db = getDb();
+  return db
+    .select({
+      id: calendarEvents.id,
+      title: calendarEvents.title,
+      startsAt: calendarEvents.startsAt,
+      endsAt: calendarEvents.endsAt,
+      timezone: calendarEvents.timezone,
+      recurrence: calendarEvents.recurrence,
+      courseName: courses.name,
+    })
+    .from(calendarEvents)
+    .leftJoin(courses, eq(calendarEvents.courseId, courses.id))
+    .where(eq(calendarEvents.workspaceId, workspaceId))
+    .orderBy(calendarEvents.startsAt);
+}
+
+export async function createCalendarEventAction(data: {
+  title: string;
+  date: string;
+  startTime?: string;
+  endTime?: string;
+  courseName?: string;
+}) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Unauthorized');
+  const workspaceId = await getPersonalWorkspaceId(user.id);
+  if (!workspaceId) throw new Error('No personal workspace found');
+
+  const title = requireText(data.title, 'Judul event', 200);
+  const startsAt = jakartaDate(data.date, data.startTime || '00:00');
+  const endsAt = data.endTime
+    ? jakartaDate(data.date, data.endTime)
+    : new Date(startsAt.getTime() + 60 * 60 * 1000);
+  if (endsAt <= startsAt) throw new Error('Waktu selesai harus setelah mulai');
+
+  const courseId = await findCourseId(workspaceId, data.courseName);
+  const id = crypto.randomUUID();
+  const db = getDb();
+  await db.insert(calendarEvents).values({
+    id,
+    workspaceId,
+    courseId,
+    title,
+    startsAt,
+    endsAt,
+    timezone: 'Asia/Jakarta',
+    syncStatus: 'local',
+  });
+  revalidatePath('/');
+  return id;
+}
+
+export async function updateCalendarEventAction(
+  eventId: string,
+  data: {
+    title: string;
+    date: string;
+    startTime?: string;
+    endTime?: string;
+    courseName?: string;
+  },
+) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Unauthorized');
+  const workspaceId = await getPersonalWorkspaceId(user.id);
+  if (!workspaceId) throw new Error('No personal workspace found');
+
+  const startsAt = jakartaDate(data.date, data.startTime || '00:00');
+  const endsAt = data.endTime
+    ? jakartaDate(data.date, data.endTime)
+    : new Date(startsAt.getTime() + 60 * 60 * 1000);
+  if (endsAt <= startsAt) throw new Error('Waktu selesai harus setelah mulai');
+  const courseId = await findCourseId(workspaceId, data.courseName);
+
+  const db = getDb();
+  await db
+    .update(calendarEvents)
+    .set({
+      title: requireText(data.title, 'Judul event', 200),
+      startsAt,
+      endsAt,
+      courseId,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(calendarEvents.id, eventId),
+        eq(calendarEvents.workspaceId, workspaceId),
+      ),
+    );
+  revalidatePath('/');
+}
+
+export async function deleteCalendarEventAction(eventId: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Unauthorized');
+  const workspaceId = await getPersonalWorkspaceId(user.id);
+  if (!workspaceId) throw new Error('No personal workspace found');
+
+  const db = getDb();
+  await db
+    .delete(calendarEvents)
+    .where(
+      and(
+        eq(calendarEvents.id, eventId),
+        eq(calendarEvents.workspaceId, workspaceId),
+      ),
+    );
+  revalidatePath('/');
 }
 
 export async function fetchUserTasks() {
@@ -54,29 +369,23 @@ export async function createTaskAction(data: {
   const workspaceId = await getPersonalWorkspaceId(user.id);
   if (!workspaceId) throw new Error('No personal workspace found');
 
+  const title = requireText(data.title, 'Judul tugas', 200);
+  if (!priorities.has(data.priority)) throw new Error('Prioritas tidak valid');
+  if (data.dueAt !== undefined && !Number.isFinite(data.dueAt)) {
+    throw new Error('Tenggat tidak valid');
+  }
+
   const db = getDb();
   const id = crypto.randomUUID();
   let courseId: string | null = null;
 
-  if (data.courseName) {
-    const [course] = await db
-      .select({ id: courses.id })
-      .from(courses)
-      .where(
-        and(
-          eq(courses.workspaceId, workspaceId),
-          eq(courses.name, data.courseName),
-        ),
-      )
-      .limit(1);
-    courseId = course?.id ?? null;
-  }
+  if (data.courseName) courseId = await findCourseId(workspaceId, data.courseName);
 
   await db.insert(tasks).values({
     id,
     workspaceId,
     creatorId: user.id,
-    title: data.title,
+    title,
     courseId,
     dueAt: data.dueAt ? new Date(data.dueAt) : null,
     priority: data.priority,
@@ -90,6 +399,8 @@ export async function createTaskAction(data: {
 export async function toggleTaskAction(taskId: string, newStatus: TaskStatus) {
   const user = await getCurrentUser();
   if (!user) throw new Error('Unauthorized');
+
+  if (!taskStatuses.has(newStatus)) throw new Error('Status tidak valid');
 
   const workspaceId = await getPersonalWorkspaceId(user.id);
   if (!workspaceId) throw new Error('No personal workspace found');
@@ -110,8 +421,7 @@ export async function updateTaskTitleAction(taskId: string, title: string) {
   const workspaceId = await getPersonalWorkspaceId(user.id);
   if (!workspaceId) throw new Error('No personal workspace found');
 
-  const cleanTitle = title.trim();
-  if (!cleanTitle) throw new Error('Title is required');
+  const cleanTitle = requireText(title, 'Judul tugas', 200);
 
   const db = getDb();
   await db

@@ -4,6 +4,24 @@ File ini mendokumentasikan riwayat perubahan (changelog) pada project untuk memu
 
 ---
 
+## [2026-09-09] - Course & Calendar Persistence
+
+**Course management**
+- Menghubungkan daftar course ke Cloudflare D1 berdasarkan personal workspace aktif.
+- Menambahkan create, edit, validasi duplikasi, dan soft-archive tanpa menghapus task/resource terhubung.
+- Menambahkan empty state, form course responsif, dan konfirmasi archive.
+
+**Calendar management**
+- Menghubungkan event lokal ke D1 dengan create, edit, delete, relasi course, dan timezone `Asia/Jakarta`.
+- Mengganti tanggal demo statis dengan tanggal aktual serta menambahkan waktu mulai/selesai dan validasi server.
+- Menambahkan rollback optimistic UI dan konfirmasi hapus agar kegagalan server tidak meninggalkan state palsu.
+
+**Reliability**
+- Memperketat validasi title, priority, task status, tanggal, waktu, dan panjang input pada server action.
+- Memperbaiki task create/edit/delete agar activity success hanya dicatat setelah persistence berhasil.
+
+---
+
 ## [2026-09-09] - Audit Kepatuhan, GSM, dan Hardening
 
 **Audit & traceability**

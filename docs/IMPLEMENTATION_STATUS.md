@@ -19,9 +19,9 @@ Label pada dokumen ini:
 |---|---|---|---|---|
 | Authentication | AUTH-002 | AUTH-001, AUTH-003, AUTH-008 | AUTH-004–AUTH-007 | Registrasi/login/logout aktif dan password memakai `scrypt`; verifikasi email, rate limit, OAuth linking, reset token, dan logout semua sesi belum tersedia. |
 | Workspace & authorization | — | WS-001–WS-003 | WS-004–WS-007 | Registrasi membuat personal workspace dan membership owner. Isolasi task menggunakan workspace pengguna, tetapi kebijakan lintas seluruh resource, kolaborasi, invite, serta transfer ownership belum lengkap. |
-| Courses | — | CRS-002 | CRS-001, CRS-003 | Course tampil sebagai state antarmuka; CRUD persisten dan aturan archive belum lengkap. |
+| Courses | CRS-003 | CRS-001, CRS-002 | — | Course memiliki create/edit/soft-archive persisten dan dapat dihubungkan ke task/event. CRUD semester dan hubungan ke seluruh jenis resource masih belum lengkap. |
 | Tasks | — | TASK-001–TASK-004 | — | Create, rename, toggle, delete, filter, dan pengelompokan tersedia; relasi/metadata, audit, validasi, serta seluruh acceptance criteria belum lengkap. |
-| Calendar | — | CAL-001, CAL-002 | CAL-003–CAL-008 | Kalender lokal dan pembuatan event tersedia sebagai UI; sinkronisasi Google, idempotency, conflict handling, retry, dan disconnect lifecycle belum ada. |
+| Calendar | — | CAL-001, CAL-002 | CAL-003–CAL-008 | Event lokal memiliki create/edit/delete persisten, agenda/month view, timezone Asia/Jakarta, dan relasi course. Day/week view, recurrence, reminder, serta seluruh sinkronisasi Google belum ada. |
 | Files | — | FILE-001, FILE-004, FILE-007 | FILE-002, FILE-003, FILE-005, FILE-006, FILE-008–FILE-010 | File manager interaktif masih memakai state lokal. Upload object storage, signed URL, hash, scan, version restore, delete lifecycle, dan retention belum ada. |
 | Notes | — | NOTE-001, NOTE-003 | NOTE-002 | Editor Markdown ringan tersedia di klien; autosave persisten, versioning, dan permission enforcement belum lengkap. |
 | Canvas | — | CAN-001, CAN-002 | CAN-003 | Pen, highlighter, eraser, undo/redo tersedia. Zoom/pan, autosave, revision, dan export PDF belum lengkap. |
@@ -39,6 +39,8 @@ Label pada dokumen ini:
 - Navigasi, dashboard, task, calendar, files, notes, canvas, AI, activity, notifications, settings, serta auth mendapatkan penyelarasan visual dan responsif.
 - Theme dimuat sebelum hydration dari preferensi tersimpan atau preferensi sistem untuk mencegah kilatan tema yang salah.
 - Task D1 mencakup create, rename, toggle, delete, pemetaan course, dan rollback optimistic UI pada kegagalan.
+- Course D1 mencakup create, edit, duplicate guard, dan soft-archive; task dan event mempertahankan relasinya.
+- Calendar D1 mencakup create, edit, delete, validasi tanggal/waktu, agenda, month view, dan relasi course.
 - Registrasi kini membuat membership owner untuk personal workspace dalam transaksi yang sama.
 - Kontrol yang belum aktif—Google OAuth, Google Calendar, dan sejumlah AI/integration action—ditandai sebagai belum tersedia, bukan dibuat seolah-olah sudah terhubung.
 
