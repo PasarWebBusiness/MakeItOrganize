@@ -205,7 +205,15 @@ export function WorkspaceApp({
   const [taskPriority, setTaskPriority] = useState<'high' | 'medium' | 'low'>('medium');
   const [query, setQuery] = useState('');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [notifCount, setNotifCount] = useState(3);
+  const [notifCount, setNotifCount] = useState(() => {
+    if (typeof window === 'undefined') return 3;
+    try {
+      const read = JSON.parse(localStorage.getItem('mio-read-notifications') || '[]') as number[];
+      return Math.max(0, 3 - read.length);
+    } catch {
+      return 3;
+    }
+  });
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
@@ -808,7 +816,6 @@ export function WorkspaceApp({
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Cari tugas, file, atau catatan..."
             />
-            <kbd>⌘ K</kbd>
           </label>
           <button
             className="icon-button"
@@ -916,7 +923,7 @@ export function WorkspaceApp({
             <AIView tasks={tasks} notes={notes} files={files} addActivity={addActivity} />
           )}
           {view === 'history' && <HistoryView activities={activities} />}
-          {view === 'notifications' && <NotificationsView />}
+          {view === 'notifications' && <NotificationsView onUnreadChange={setNotifCount} />}
           {view === 'settings' && (
             <SettingsView dark={dark} setDark={setDark} user={user} />
           )}

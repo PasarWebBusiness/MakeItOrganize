@@ -49,7 +49,7 @@ export function CanvasBoard() {
       context.stroke();
     }
     for (const stroke of strokes) {
-      if (stroke.points.length < 2) continue;
+      if (!stroke || !Array.isArray(stroke.points) || stroke.points.length < 2) continue;
       context.beginPath();
       context.globalAlpha = stroke.alpha;
       context.strokeStyle = stroke.color;
@@ -88,10 +88,11 @@ export function CanvasBoard() {
   };
   const move = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawing.current || !current.current) return;
-    current.current.points.push(point(event));
+    const activeStroke = current.current;
+    activeStroke.points.push(point(event));
     setStrokes((all) => [
-      ...all.filter((stroke) => stroke !== current.current),
-      current.current as Stroke,
+      ...all.filter((stroke) => stroke !== activeStroke),
+      activeStroke,
     ]);
   };
   const end = () => {

@@ -59,12 +59,16 @@ html, body, button, input, select, textarea { font-family: var(--font-poppins); 
 html { background: var(--background); text-rendering: optimizeLegibility; }
 body { min-width: 320px; font-size: 16px; line-height: 1.5; background: var(--background); color: var(--foreground); }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button { text-transform: none; letter-spacing: normal; }
 button:not(:disabled) { cursor: pointer; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [role='checkbox']:focus-visible { outline: 3px solid color-mix(in srgb, var(--ring) 48%, transparent); outline-offset: 2px; }
 
 .app-frame { grid-template-columns: 264px minmax(0, 1fr); }
-.sidebar { width: 264px; padding: 22px 16px 18px; background: var(--sidebar); border-color: var(--border); }
-.brand { min-height: 52px; padding: 0 10px 18px; }
+.sidebar { width: 264px; height: 100dvh; padding: 22px 16px 18px; background: var(--sidebar); border-color: var(--border); overflow: hidden; }
+.brand { min-height: 52px; padding: 0 10px 18px; flex: 0 0 auto; }
+.side-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
+.side-nav::-webkit-scrollbar { width: 6px; }
+.side-nav::-webkit-scrollbar-thumb { background: var(--input); border-radius: 999px; }
 .brand img { width: 40px; height: 40px; flex: 0 0 auto; }
 .brand-logo-text { color: var(--foreground); font-size: 16px; font-weight: 700; letter-spacing: -.035em; white-space: nowrap; }
 .brand-logo-text > span { color: var(--muted-foreground); font-weight: 500; }
@@ -74,7 +78,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .nav-item:hover { background: var(--sidebar-hover); color: var(--primary); }
 .nav-item.is-active { background: var(--accent); color: var(--accent-foreground); }
 .nav-count { min-width: 24px; height: 24px; background: var(--card); color: var(--muted-foreground); font-size: 12px; box-shadow: var(--shadow-sm); }
-.profile-chip { min-height: 66px; border-color: var(--border); background: transparent; color: var(--foreground); text-align: left; }
+.profile-chip { min-height: 66px; flex: 0 0 auto; margin-top: 10px; border-color: var(--border); background: var(--sidebar); color: var(--foreground); text-align: left; }
 .profile-chip:hover { background: var(--sidebar-hover); border-radius: 12px; }
 .avatar { background: var(--accent); color: var(--accent-foreground); font-size: 12px; }
 .profile-chip strong, .account-summary strong, .member-row strong, .session-row strong { font-size: 14px; }
@@ -122,9 +126,23 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .content-toolbar { min-height: 76px; }
 .filter-row { background: var(--muted); }
 .filter-row button, .view-pill, .sort-select, .prompt-chip, .context-menu button, .note-course-select { min-height: 40px; font-family: var(--font-poppins); font-size: 13px; }
-.filter-row button.active, .view-pill.active { background: var(--card); }
+.filter-row button.active, .view-pill.active { background: var(--card); color: var(--primary); box-shadow: 0 1px 5px rgb(15 23 42 / 12%); outline: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border)); }
 .day-cell { min-height: 102px; padding: 9px; border: 0; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--card); color: var(--foreground); font-size: 13px; text-align: left; }
 .day-cell:hover { background: var(--muted); }
+.week-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); min-height: 430px; }
+.week-day { min-width: 0; padding: 18px 10px; border: 0; border-right: 1px solid var(--border); background: var(--card); color: var(--foreground); text-align: left; }
+.week-day:last-child { border-right: 0; }
+.week-day > span, .week-day > strong { display: block; text-align: center; }
+.week-day > span { color: var(--muted-foreground); font-size: 12px; }
+.week-day > strong { margin: 6px 0 18px; font-size: 22px; }
+.week-day > i { display: block; margin-top: 8px; padding: 8px; overflow: hidden; border-radius: 8px; background: var(--accent); color: var(--accent-foreground); font-size: 12px; font-style: normal; text-overflow: ellipsis; }
+.week-day.selected { background: color-mix(in srgb, var(--accent) 32%, var(--card)); box-shadow: inset 0 3px var(--primary); }
+.year-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 18px; }
+.year-grid button { min-height: 92px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--foreground); text-align: left; }
+.year-grid button:hover, .year-grid button.selected { border-color: var(--primary); background: var(--accent); }
+.year-grid strong, .year-grid span { display: block; }
+.year-grid strong { font-size: 15px; }
+.year-grid span { margin-top: 8px; color: var(--muted-foreground); font-size: 12px; }
 .day-cell.empty { background: color-mix(in srgb, var(--background) 55%, var(--card)); }
 .weekday, .cal-event, .cal-event-more, .sync-card strong, .sync-card > span, .agenda-empty { font-size: 12px; }
 .agenda-event { grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; }
@@ -160,11 +178,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .notes-layout { min-height: 640px; grid-template-columns: 300px minmax(0, 1fr); }
 .note-list > button { min-height: 92px; color: var(--foreground); }
 .note-list > button.active { background: var(--accent); }
-.editor-toolbar { min-height: 62px; height: auto; }
+.editor-toolbar { min-height: 62px; height: auto; padding-block: 10px; gap: 12px; flex-wrap: wrap; }
+.editor-toolbar > div { flex-wrap: wrap; }
 .editor-toolbar span { color: var(--muted-foreground); font-size: 12px; }
 .note-title { font-family: var(--font-poppins); font-size: 28px; }
 .note-course-select { color: var(--primary); background: transparent; }
-.note-editor textarea { font-family: var(--font-poppins); font-size: 16px; line-height: 1.75; }
+.note-editor-rich { width: calc(100% - 80px); min-height: 410px; margin: 0 40px 36px; padding: 4px 0; outline: 0; color: var(--foreground); font: 400 16px/1.75 var(--font-poppins); }
+.note-editor-rich:empty::before { content: attr(data-placeholder); color: var(--muted-foreground); pointer-events: none; }
+.note-editor-rich h2 { margin: 1.3em 0 .5em; font-size: 22px; line-height: 1.3; }
+.note-editor-rich blockquote { margin: 1em 0; padding: 8px 14px; border-left: 3px solid var(--primary); background: var(--muted); color: var(--secondary-foreground); }
+.note-editor-rich code { padding: 2px 5px; border-radius: 5px; background: var(--muted); font-family: ui-monospace, monospace; font-size: 14px; }
+.note-editor-rich ul, .note-editor-rich ol { padding-left: 26px; }
 .canvas-meta h2 { font-size: 18px; }
 .canvas-shell { --canvas-paper: #ffffff; --canvas-grid: #e4eaf2; box-shadow: var(--shadow-sm); }
 .dark .canvas-shell { --canvas-paper: #151e29; --canvas-grid: #263445; }
@@ -184,11 +208,27 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .auth-field { gap: 7px; font-size: 14px; }
 .auth-field input { min-height: 48px; font-family: var(--font-poppins); font-size: 16px; background: var(--background); color: var(--foreground); }
 .auth-error, .overdue-pill, .overdue-badge { background: var(--destructive-soft); color: var(--destructive); border-color: color-mix(in srgb, var(--destructive) 30%, var(--border)); }
-.modal-overlay { background: rgb(15 23 42 / 48%); backdrop-filter: blur(3px); }
+.modal-overlay { padding: 20px; background: rgb(15 23 42 / 52%); backdrop-filter: blur(5px); }
+.modal-card { width: min(540px, 100%); max-height: calc(100dvh - 40px); overflow-y: auto; border-radius: 18px; }
 .modal-card, .context-menu { background: var(--popover); color: var(--popover-foreground); box-shadow: var(--shadow-md); }
+.modal-head { min-height: 68px; height: auto; padding: 14px 22px; }
+.modal-head button { min-width: 40px; min-height: 40px; }
+.modal-card .form-stack { padding: 24px; gap: 18px; }
+.modal-footer { padding: 16px 24px; }
+.context-menu { min-width: 178px; max-width: calc(100vw - 24px); }
 .form-stack label { font-size: 14px; }
 .form-stack input, .form-stack select, .task-inline-edit, .search-inline input { font-family: var(--font-poppins); font-size: 14px; }
-.form-stack input, .form-stack select { min-height: 46px; background: var(--background); color: var(--foreground); }
+.form-stack input, .form-stack select { min-height: 48px; background-color: var(--background); color: var(--foreground); }
+select { appearance: none; padding-right: 42px !important; background-image: linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%), linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; border: 1px solid var(--border); border-radius: 11px; }
+select:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); }
+select:focus-visible { border-color: var(--ring); }
+[data-slot='switch'] { width: 46px !important; height: 26px !important; padding: 3px; background: var(--input) !important; border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent) !important; box-shadow: inset 0 1px 2px rgb(15 23 42 / 12%); }
+[data-slot='switch'][data-checked] { background: var(--primary) !important; border-color: var(--primary) !important; }
+[data-slot='switch-thumb'] { width: 18px !important; height: 18px !important; background: #fff !important; box-shadow: 0 1px 4px rgb(15 23 42 / 28%); }
+[data-slot='switch'][data-checked] [data-slot='switch-thumb'] { transform: translateX(18px) !important; }
+[data-slot='dialog-content'].create-dialog { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; border-radius: 20px; padding: 24px; background: var(--popover); box-shadow: var(--shadow-md); }
+.canvas-hint { min-height: 48px; display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 18px; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 13px; line-height: 1.5; }
+.canvas-hint svg { flex: 0 0 auto; color: var(--primary); }
 .bottom-nav { background: color-mix(in srgb, var(--card) 94%, transparent); border-color: var(--border); }
 .bottom-nav button { min-height: 52px; color: var(--muted-foreground); font-size: 12px; }
 .bottom-nav button.is-active { color: var(--primary); }
@@ -282,7 +322,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .topbar { height: 68px; padding: 0 16px; }
   .dashboard-wrap { padding: 28px 16px 36px; }
   .welcome-row h1 { font-size: 30px; }
-  .search-box input, .note-search input, .note-editor textarea, .form-stack input, .form-stack select { font-size: 16px; }
+  .search-box input, .note-search input, .note-editor-rich, .form-stack input, .form-stack select { font-size: 16px; }
   .calendar-layout, .notes-layout, .settings-layout, .ai-layout { grid-template-columns: minmax(0, 1fr); }
   .ai-chat { min-height: 560px; order: 1; }
   .ai-context { order: 2; }
@@ -293,14 +333,20 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .settings-sections, .settings-layout, .ai-layout { min-width: 0; }
   .month-grid { min-width: 0; }
   .day-cell { min-height: 72px; padding: 6px; }
+  .week-grid { grid-template-columns: 1fr; min-height: 0; }
+  .week-day { border-right: 0; border-bottom: 1px solid var(--border); }
+  .year-grid { grid-template-columns: repeat(2, 1fr); }
   .day-cell .cal-event { overflow: hidden; height: 7px; padding: 0; color: transparent; }
   .content-toolbar { align-items: flex-start; flex-direction: column; }
   .filter-row { width: 100%; overflow-x: auto; }
   .filter-row button { flex: 0 0 auto; }
   .notes-layout { min-height: auto; }
   .note-list { max-height: 310px; }
-  .note-title, .note-course-row, .note-editor textarea { margin-left: 24px; margin-right: 24px; width: calc(100% - 48px); }
+  .note-title, .note-course-row, .note-editor-rich { margin-left: 24px; margin-right: 24px; width: calc(100% - 48px); }
   .bottom-nav { height: 74px; }
+  .modal-overlay { align-items: end; padding: 10px; }
+  .modal-card { width: 100%; max-height: calc(100dvh - 20px); border-radius: 20px; }
+  .form-row-2 { grid-template-columns: 1fr; }
   .course-list-toolbar { align-items: stretch; flex-direction: column; }
   .course-list-toolbar > button { width: 100%; }
 }

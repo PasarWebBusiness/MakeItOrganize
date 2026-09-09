@@ -303,6 +303,7 @@ export function CalendarView({
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDay, setSelectedDay] = useState(today.getDate());
+  const [calendarMode, setCalendarMode] = useState<'month' | 'week' | 'year'>('month');
   const [createOpen, setCreateOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CalendarEvent | null>(null);
@@ -323,8 +324,20 @@ export function CalendarView({
   const startOffset = firstDay === 0 ? 6 : firstDay - 1; // Mon-based
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
-  const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
+  const navigateCalendar = (direction: -1 | 1) => {
+    if (calendarMode === 'year') {
+      setCurrentMonth(new Date(year + direction, month, 1));
+      return;
+    }
+    if (calendarMode === 'week') {
+      const nextDate = new Date(year, month, selectedDay + direction * 7);
+      setCurrentMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
+      setSelectedDay(nextDate.getDate());
+      return;
+    }
+    setCurrentMonth(new Date(year, month + direction, 1));
+    setSelectedDay(1);
+  };
 
   const getEventsForDay = (day: number) => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -385,23 +398,24 @@ export function CalendarView({
       <section className="panel calendar-panel">
         <div className="calendar-toolbar">
           <div>
-            <button onClick={prevMonth} aria-label="Bulan sebelumnya">
+            <button onClick={() => navigateCalendar(-1)} aria-label="Periode sebelumnya">
               <ChevronLeft size={18} />
             </button>
-            <button onClick={nextMonth} aria-label="Bulan berikutnya">
+            <button onClick={() => navigateCalendar(1)} aria-label="Periode berikutnya">
               <ChevronRight size={18} />
             </button>
             <strong>{monthName}</strong>
           </div>
           <div>
-            <button className="view-pill active">Bulan</button>
-            <button className="view-pill" disabled title="Tampilan minggu masih dalam pengembangan">Minggu</button>
+            <button className={`view-pill ${calendarMode === 'month' ? 'active' : ''}`} onClick={() => setCalendarMode('month')}>Bulan</button>
+            <button className={`view-pill ${calendarMode === 'week' ? 'active' : ''}`} onClick={() => setCalendarMode('week')}>Minggu</button>
+            <button className={`view-pill ${calendarMode === 'year' ? 'active' : ''}`} onClick={() => setCalendarMode('year')}>Tahun</button>
             <Button onClick={openCreate}>
               <Plus size={16} /> Event
             </Button>
           </div>
         </div>
-        <div className="month-grid">
+        {calendarMode === 'month' && <div className="month-grid">
           {['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'].map((d) => (
             <span className="weekday" key={d}>{d}</span>
           ))}
@@ -431,7 +445,46 @@ export function CalendarView({
               </button>
             );
           })}
-        </div>
+        </div>}
+        {calendarMode === 'week' && (
+          <div className="week-grid">
+            {Array.from({ length: 7 }, (_, index) => {
+              const selectedDate = new Date(year, month, selectedDay);
+              const mondayOffset = (selectedDate.getDay() + 6) % 7;
+              const date = new Date(year, month, selectedDay - mondayOffset + index);
+              const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+              const dayEvents = events.filter((event) => event.date === dateKey);
+              return (
+                <button
+                  key={dateKey}
+                  className={`week-day ${dateKey === selectedDateStr ? 'selected' : ''}`}
+                  onClick={() => {
+                    setCurrentMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+                    setSelectedDay(date.getDate());
+                  }}
+                >
+                  <span>{date.toLocaleDateString('id-ID', { weekday: 'short' })}</span>
+                  <strong>{date.getDate()}</strong>
+                  {dayEvents.map((event) => <i key={event.id}>{event.startTime || 'Seharian'} · {event.title}</i>)}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {calendarMode === 'year' && (
+          <div className="year-grid">
+            {Array.from({ length: 12 }, (_, monthIndex) => (
+              <button
+                key={monthIndex}
+                className={monthIndex === month ? 'selected' : ''}
+                onClick={() => { setCurrentMonth(new Date(year, monthIndex, 1)); setSelectedDay(1); setCalendarMode('month'); }}
+              >
+                <strong>{new Date(year, monthIndex, 1).toLocaleDateString('id-ID', { month: 'long' })}</strong>
+                <span>{events.filter((event) => event.date.startsWith(`${year}-${String(monthIndex + 1).padStart(2, '0')}`)).length} event</span>
+              </button>
+            ))}
+          </div>
+        )}
       </section>
       <aside className="panel agenda-side">
         <span className="section-kicker">
@@ -477,7 +530,7 @@ export function CalendarView({
 
       {/* Create Event Dialog */}
       {createOpen && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreateOpen(false); }}>
           <div className="modal-card">
             <div className="modal-head">
               <strong>{editingEvent ? 'Edit event' : 'Tambah event'}</strong>
@@ -1072,7 +1125,7 @@ export function CoursesView({
       </div>
 
       {editorOpen && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditorOpen(false); }}>
           <div className="modal-card" aria-labelledby="course-editor-title">
             <div className="modal-head">
               <strong id="course-editor-title">
@@ -1099,7 +1152,7 @@ export function CoursesView({
                   <input
                     value={code}
                     onChange={(event) => setCode(event.target.value)}
-                    placeholder="STAT-204"
+                    placeholder="TI12345"
                     maxLength={32}
                   />
                 </label>
@@ -1272,10 +1325,13 @@ export function FilesView({
     <>
       <input ref={inputRef} className="sr-only" type="file" multiple onChange={upload} />
       {contextMenu && (
-        <div className="modal-overlay transparent">
+        <div className="modal-overlay transparent" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setContextMenu(null); }}>
           <div
             className="context-menu"
-            style={{ top: contextMenu.y, left: contextMenu.x }}
+            style={{
+              top: Math.max(12, Math.min(contextMenu.y, window.innerHeight - 210)),
+              left: Math.max(12, Math.min(contextMenu.x, window.innerWidth - 190)),
+            }}
           >
             <button onClick={() => { startRename(files.find((f) => f.id === contextMenu.id)!); }}>
               <Pencil size={14} /> Ganti nama
@@ -1407,7 +1463,7 @@ export function NotesView({
 }) {
   const [selected, setSelected] = useState(notes[0]?.id ?? '');
   const [search, setSearch] = useState('');
-  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
 
   const filtered = notes.filter(
     (n) =>
@@ -1438,21 +1494,26 @@ export function NotesView({
     setSelected(remaining[0]?.id ?? '');
   };
 
-  const formatSelection = (prefix: string, suffix = prefix) => {
-    if (!note) return;
+  const formatSelection = (tag: 'strong' | 'em' | 'h2' | 'blockquote' | 'code' | 'ul' | 'ol') => {
     const editor = editorRef.current;
-    const start = editor?.selectionStart ?? note.body.length;
-    const end = editor?.selectionEnd ?? note.body.length;
-    const selectedText = note.body.slice(start, end);
-    const nextBody = `${note.body.slice(0, start)}${prefix}${selectedText}${suffix}${note.body.slice(end)}`;
-    update({ body: nextBody });
-    requestAnimationFrame(() => {
-      editorRef.current?.focus();
-      editorRef.current?.setSelectionRange(
-        start + prefix.length,
-        end + prefix.length,
-      );
-    });
+    const selection = window.getSelection();
+    if (!editor || !selection?.rangeCount || selection.isCollapsed) return;
+    const range = selection.getRangeAt(0);
+    if (!editor.contains(range.commonAncestorContainer)) return;
+    const element = document.createElement(tag);
+    if (tag === 'ul' || tag === 'ol') {
+      const item = document.createElement('li');
+      item.appendChild(range.extractContents());
+      element.appendChild(item);
+    } else {
+      element.appendChild(range.extractContents());
+    }
+    range.insertNode(element);
+    selection.removeAllRanges();
+    const nextRange = document.createRange();
+    nextRange.selectNodeContents(element);
+    selection.addRange(nextRange);
+    update({ body: editor.innerHTML });
   };
 
   return (
@@ -1497,14 +1558,17 @@ export function NotesView({
         <section className="panel note-editor">
           <div className="editor-toolbar">
             <div>
-              <button onClick={() => formatSelection('**')} title="Tebal" aria-label="Tebal">
+              <button onClick={() => formatSelection('strong')} title="Tebal" aria-label="Tebal">
                 <strong>B</strong>
               </button>
-              <button onClick={() => formatSelection('_')} title="Miring" aria-label="Miring">
+              <button onClick={() => formatSelection('em')} title="Miring" aria-label="Miring">
                 <em>I</em>
               </button>
-              <button onClick={() => formatSelection('## ', '')} title="Heading" aria-label="Heading">H2</button>
-              <button onClick={() => formatSelection('- ', '')} title="Daftar" aria-label="Daftar">• List</button>
+              <button onClick={() => formatSelection('h2')} title="Heading 2" aria-label="Heading 2">H2</button>
+              <button onClick={() => formatSelection('ul')} title="Daftar bullet" aria-label="Daftar bullet">• List</button>
+              <button onClick={() => formatSelection('ol')} title="Daftar angka" aria-label="Daftar angka">1. List</button>
+              <button onClick={() => formatSelection('blockquote')} title="Kutipan" aria-label="Kutipan">❞</button>
+              <button onClick={() => formatSelection('code')} title="Kode" aria-label="Kode">{'</>'}</button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>Tersimpan otomatis</span>
@@ -1538,12 +1602,16 @@ export function NotesView({
               <option>Tanpa mata kuliah</option>
             </select>
           </div>
-          <textarea
+          <div
+            key={note.id}
             ref={editorRef}
-            value={note.body}
-            onChange={(event) => update({ body: event.target.value })}
+            className="note-editor-rich"
+            contentEditable
+            suppressContentEditableWarning
+            dangerouslySetInnerHTML={{ __html: note.body }}
+            onInput={(event) => update({ body: event.currentTarget.innerHTML })}
             aria-label="Isi catatan"
-            placeholder="Mulai menulis..."
+            data-placeholder="Mulai menulis…"
           />
         </section>
       ) : (
@@ -1827,7 +1895,7 @@ export function AIView({
 /* ─── History ────────────────────────────────────────────── */
 
 export function HistoryView({ activities }: { activities: Activity[] }) {
-  const [filter, setFilter] = useState('Semua');
+  const [filter, setFilter] = useState('Semua aktivitas');
   const [search, setSearch] = useState('');
 
   const visible = activities.filter((item) => {
@@ -1911,8 +1979,15 @@ const History = FileText;
 
 /* ─── Notifications ──────────────────────────────────────── */
 
-export function NotificationsView() {
-  const [read, setRead] = useState<number[]>([]);
+export function NotificationsView({ onUnreadChange }: { onUnreadChange: (count: number) => void }) {
+  const [read, setRead] = useState<number[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      return JSON.parse(localStorage.getItem('mio-read-notifications') || '[]') as number[];
+    } catch {
+      return [];
+    }
+  });
   const [filter, setFilter] = useState('Semua');
   const items = [
     {
@@ -1945,6 +2020,12 @@ export function NotificationsView() {
     true,
   );
 
+  const updateRead = (next: number[]) => {
+    setRead(next);
+    localStorage.setItem('mio-read-notifications', JSON.stringify(next));
+    onUnreadChange(Math.max(0, items.length - next.length));
+  };
+
   return (
     <section className="panel content-panel">
       <div className="content-toolbar">
@@ -1954,10 +2035,10 @@ export function NotificationsView() {
           ))}
         </div>
         <div className="toolbar-right">
-          <strong style={{ fontSize: 11 }}>{items.length - read.length} belum dibaca</strong>
+          <strong style={{ fontSize: 13 }}>{items.length - read.length} belum dibaca</strong>
           <button
             className="text-action"
-            onClick={() => setRead(items.map((item) => item.id))}
+            onClick={() => updateRead(items.map((item) => item.id))}
           >
             Tandai semua dibaca
           </button>
@@ -1968,7 +2049,7 @@ export function NotificationsView() {
           <button
             className={read.includes(item.id) ? 'read' : ''}
             key={item.id}
-            onClick={() => setRead((all) => Array.from(new Set([...all, item.id])))}
+            onClick={() => updateRead(Array.from(new Set([...read, item.id])))}
           >
             <span className={`notification-icon ${item.type}`}>
               {item.type === 'task' ? (
@@ -2004,13 +2085,22 @@ export function SettingsView({
   user?: { name: string; email: string };
 }) {
   const [activeSection, setActiveSection] = useState('akun');
-  const [calendar, setCalendar] = useState(false);
-  const [browser, setBrowser] = useState(false);
-  const [email, setEmailNotif] = useState(false);
-  const [weekly, setWeekly] = useState(false);
-  const [aiMove, setAiMove] = useState(true);
-  const [aiRead, setAiRead] = useState(true);
-  const [aiCreate, setAiCreate] = useState(false);
+  const persistedSetter = (key: string, setter: (value: boolean) => void) => (value: boolean) => {
+    window.localStorage.setItem(`mio-setting-${key}`, String(value));
+    setter(value);
+  };
+  const savedSetting = (key: string, fallback: boolean) => {
+    if (typeof window === 'undefined') return fallback;
+    const value = window.localStorage.getItem(`mio-setting-${key}`);
+    return value === null ? fallback : value === 'true';
+  };
+  const [calendar, setCalendar] = useState(() => savedSetting('calendar', false));
+  const [browser, setBrowser] = useState(() => savedSetting('browser', false));
+  const [email, setEmailNotif] = useState(() => savedSetting('email', false));
+  const [weekly, setWeekly] = useState(() => savedSetting('weekly', false));
+  const [aiMove, setAiMove] = useState(() => savedSetting('ai-move', true));
+  const [aiRead, setAiRead] = useState(() => savedSetting('ai-read', true));
+  const [aiCreate, setAiCreate] = useState(() => savedSetting('ai-create', false));
 
   const sections = [
     { id: 'akun', label: 'Akun', icon: UserRound },
@@ -2021,9 +2111,9 @@ export function SettingsView({
   ];
 
   const aiPermissions = [
-    { id: 'read', label: 'Baca file & catatan', text: 'AI membaca konten yang kamu izinkan untuk menjawab pertanyaan.', checked: aiRead, onChange: setAiRead },
-    { id: 'move', label: 'Pindahkan & rapikan file', text: 'Tetap meminta izin untuk tindakan bulk atau sensitif.', checked: aiMove, onChange: setAiMove },
-    { id: 'create', label: 'Buat task & event', text: 'AI dapat membuat task/event atas namamu dengan konfirmasimu.', checked: aiCreate, onChange: setAiCreate },
+    { id: 'read', label: 'Baca file & catatan', text: 'AI membaca konten yang kamu izinkan untuk menjawab pertanyaan.', checked: aiRead, onChange: persistedSetter('ai-read', setAiRead) },
+    { id: 'move', label: 'Pindahkan & rapikan file', text: 'Tetap meminta izin untuk tindakan bulk atau sensitif.', checked: aiMove, onChange: persistedSetter('ai-move', setAiMove) },
+    { id: 'create', label: 'Buat task & event', text: 'AI dapat membuat task/event atas namamu dengan konfirmasimu.', checked: aiCreate, onChange: persistedSetter('ai-create', setAiCreate) },
   ];
 
   const members = [
@@ -2155,21 +2245,21 @@ export function SettingsView({
               title="Notifikasi browser"
               text="Deadline, kelas, dan reminder penting."
               checked={browser}
-              onChange={setBrowser}
+              onChange={persistedSetter('browser', setBrowser)}
             />
             <SettingRow
               icon={MessageSquareText}
               title="Notifikasi email"
               text="Pengingat dikirim ke email terdaftar."
               checked={email}
-              onChange={setEmailNotif}
+              onChange={persistedSetter('email', setEmailNotif)}
             />
             <SettingRow
               icon={Sparkles}
               title="Ringkasan mingguan"
               text="Dikirim Senin pagi jika ada hal actionable."
               checked={weekly}
-              onChange={setWeekly}
+              onChange={persistedSetter('weekly', setWeekly)}
             />
           </section>
         )}
