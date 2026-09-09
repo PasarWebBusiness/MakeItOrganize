@@ -1,6 +1,6 @@
 # Arsitektur Sistem
 
-**Status:** Proposed baseline  
+**Status:** Runtime baseline amended by ADR-0004
 **Gaya:** Modular monolith + asynchronous workers  
 **Target:** Google Cloud, portable pada batas provider adapter
 
@@ -17,6 +17,8 @@ Baseline implementasi yang diusulkan:
 - Cloud Run untuk stateless web/API dan worker; Cloud Tasks untuk command terjadwal/retry dan Pub/Sub untuk event fan-out.
 - Secret Manager, Cloud Logging/Monitoring/Trace, dan managed PostgreSQL production.
 - Vector capability dimulai dari PostgreSQL extension/managed vector yang memenuhi filter ACL; ekstraksi ke vector service hanya dengan ADR.
+
+Implementasi initial release mengikuti ADR-0004: OpenAI Sites/Vinext di Cloudflare Workers, D1, dan R2. Daftar Google Cloud di atas dipertahankan sebagai target migrasi; aturan modular monolith, provider adapter, policy, outbox, sync, dan AI safety tetap normatif.
 
 ## 2. Konteks sistem
 
@@ -189,4 +191,3 @@ Provider-specific code hanya berada di adapter: object storage, calendar, AI, em
 - Cloud Run menyediakan stateless HTTPS services dan autoscaling: https://cloud.google.com/run/docs/overview/what-is-cloud-run
 - Cloud Storage object recovery/versioning perlu lifecycle policy: https://cloud.google.com/storage/docs/object-versioning
 - Gemini API paid usage memerlukan project/billing API sendiri: https://ai.google.dev/gemini-api/docs/billing
-

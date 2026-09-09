@@ -6,6 +6,14 @@ import { createSession } from '@/lib/auth';
 import { hashPassword, verifyPassword } from '@/lib/auth';
 import { eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
+import { consumeAuthRateLimit } from '@/lib/rate-limit';
+
+async function authIdentity(email: string) {
+  const requestHeaders = await headers();
+  const address = requestHeaders.get('cf-connecting-ip') || requestHeaders.get('x-forwarded-for')?.split(',')[0] || 'local';
+  return `${address}:${email}`;
+}
 
 export async function loginAction(formData: FormData) {
   const email = formData.get('email') as string;
@@ -13,6 +21,12 @@ export async function loginAction(formData: FormData) {
 
   if (!email || !password) {
     return { error: 'Email dan password wajib diisi.' };
+  }
+
+  try {
+    await consumeAuthRateLimit('login', await authIdentity(email), 10, 15 * 60 * 1000);
+  } catch {
+    return { error: 'Terlalu banyak percobaan. Coba lagi beberapa saat.' };
   }
 
   const db = getDb();
@@ -49,6 +63,12 @@ export async function registerAction(formData: FormData) {
 
   if (!name || !email || !password) {
     return { error: 'Semua kolom wajib diisi.' };
+  }
+
+  try {
+    await consumeAuthRateLimit('register', await authIdentity(email), 5, 60 * 60 * 1000);
+  } catch {
+    return { error: 'Terlalu banyak percobaan. Coba lagi beberapa saat.' };
   }
 
   if (password !== confirmPassword) {

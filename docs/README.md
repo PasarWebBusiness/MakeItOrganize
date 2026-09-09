@@ -8,14 +8,14 @@ Dokumentasi ini adalah baseline fundamental MakeItOrganize. Jika brief, implemen
 |---|---|---|
 | [PRD.md](PRD.md) | Masalah, pengguna, scope, journey, prioritas, dan ukuran keberhasilan | Baseline v1.0 |
 | [SRS.md](SRS.md) | Requirement fungsional/nonfungsional yang dapat diuji | Baseline v1.0 |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Batas sistem, komponen, aliran data, integrasi, dan deployment | Proposed |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Batas sistem, komponen, aliran data, integrasi, dan deployment | Active via ADR-0004 |
 | [DATA_MODEL.md](DATA_MODEL.md) | Entitas, relasi, invariants, dan strategi tenancy | Proposed |
 | [SECURITY.md](SECURITY.md) | Threat model, access control, OAuth, AI permission, dan audit | Baseline |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Identitas visual, token, komponen, responsivitas, dan aksesibilitas | Baseline |
 | [TEST_STRATEGY.md](TEST_STRATEGY.md) | Quality gates, level test, dan skenario kritis | Baseline |
-| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Traceability requirement, bukti audit, dan gap implementasi aktual | Active |
 | [ROADMAP.md](ROADMAP.md) | Urutan implementasi tanpa menghapus scope rilis lengkap | Proposed |
 | [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Traceability requirement, bukti audit, dan gap implementasi aktual | Living document |
+| [INTEGRATION_READINESS_REPORT.md](INTEGRATION_READINESS_REPORT.md) | Audit kesiapan Google dan Gemini, bukti gate, serta batas production | Active |
 | [GLOSSARY.md](GLOSSARY.md) | Istilah domain resmi | Baseline |
 | [adr/](adr/README.md) | Log keputusan arsitektur | Active |
 

@@ -6,6 +6,7 @@ import {
   fetchUserCourses,
   fetchUserTasks,
 } from '@/app/actions/core';
+import { fetchUserPreferences } from '@/app/actions/preferences';
 import type {
   CalendarEvent,
   Course,
@@ -35,16 +36,28 @@ function jakartaParts(value: Date) {
   };
 }
 
+function parseNotificationIds(value: string): number[] {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is number => Number.isSafeInteger(item) && item > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export default async function HomePage() {
   const user = await getCurrentUser();
   if (!user) {
     redirect('/login');
   }
 
-  const [dbTasks, dbCourses, dbEvents] = await Promise.all([
+  const [dbTasks, dbCourses, dbEvents, preferences] = await Promise.all([
     fetchUserTasks(),
     fetchUserCourses(),
     fetchUserCalendarEvents(),
+    fetchUserPreferences(),
   ]);
   
   // Map DB schema to UI Task type
@@ -93,6 +106,15 @@ export default async function HomePage() {
       initialTasks={mappedTasks}
       initialCourses={mappedCourses}
       initialCalendarEvents={mappedEvents}
+      initialPreferences={{
+        browserNotifications: preferences.browserNotifications,
+        emailNotifications: preferences.emailNotifications,
+        weeklySummary: preferences.weeklySummary,
+        aiRead: preferences.aiRead,
+        aiMove: preferences.aiMove,
+        aiCreate: preferences.aiCreate,
+        readNotificationIds: parseNotificationIds(preferences.readNotificationIds),
+      }}
     />
   );
 }

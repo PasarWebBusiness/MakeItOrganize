@@ -175,11 +175,21 @@ export function WorkspaceApp({
   initialTasks,
   initialCourses,
   initialCalendarEvents,
+  initialPreferences,
 }: {
   user?: { name: string; email: string };
   initialTasks?: Task[];
   initialCourses?: Course[];
   initialCalendarEvents?: CalendarEvent[];
+  initialPreferences?: {
+    browserNotifications: boolean;
+    emailNotifications: boolean;
+    weeklySummary: boolean;
+    aiRead: boolean;
+    aiMove: boolean;
+    aiCreate: boolean;
+    readNotificationIds: number[];
+  };
 }) {
   const [view, setView] = useState<ViewKey>('dashboard');
   const [tasks, setTasks] = useState<Task[]>(initialTasks || seedTasks);
@@ -205,15 +215,9 @@ export function WorkspaceApp({
   const [taskPriority, setTaskPriority] = useState<'high' | 'medium' | 'low'>('medium');
   const [query, setQuery] = useState('');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [notifCount, setNotifCount] = useState(() => {
-    if (typeof window === 'undefined') return 3;
-    try {
-      const read = JSON.parse(localStorage.getItem('mio-read-notifications') || '[]') as number[];
-      return Math.max(0, 3 - read.length);
-    } catch {
-      return 3;
-    }
-  });
+  const [notifCount, setNotifCount] = useState(() =>
+    Math.max(0, 3 - (initialPreferences?.readNotificationIds.length ?? 0)),
+  );
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
@@ -923,9 +927,19 @@ export function WorkspaceApp({
             <AIView tasks={tasks} notes={notes} files={files} addActivity={addActivity} />
           )}
           {view === 'history' && <HistoryView activities={activities} />}
-          {view === 'notifications' && <NotificationsView onUnreadChange={setNotifCount} />}
+          {view === 'notifications' && (
+            <NotificationsView
+              onUnreadChange={setNotifCount}
+              initialRead={initialPreferences?.readNotificationIds}
+            />
+          )}
           {view === 'settings' && (
-            <SettingsView dark={dark} setDark={setDark} user={user} />
+            <SettingsView
+              dark={dark}
+              setDark={setDark}
+              user={user}
+              initialPreferences={initialPreferences}
+            />
           )}
         </div>
       </main>

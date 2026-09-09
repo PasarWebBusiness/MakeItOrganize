@@ -1979,15 +1979,14 @@ const History = FileText;
 
 /* ─── Notifications ──────────────────────────────────────── */
 
-export function NotificationsView({ onUnreadChange }: { onUnreadChange: (count: number) => void }) {
-  const [read, setRead] = useState<number[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      return JSON.parse(localStorage.getItem('mio-read-notifications') || '[]') as number[];
-    } catch {
-      return [];
-    }
-  });
+export function NotificationsView({
+  onUnreadChange,
+  initialRead = [],
+}: {
+  onUnreadChange: (count: number) => void;
+  initialRead?: number[];
+}) {
+  const [read, setRead] = useState<number[]>(initialRead);
   const [filter, setFilter] = useState('Semua');
   const items = [
     {
@@ -2024,6 +2023,9 @@ export function NotificationsView({ onUnreadChange }: { onUnreadChange: (count: 
     setRead(next);
     localStorage.setItem('mio-read-notifications', JSON.stringify(next));
     onUnreadChange(Math.max(0, items.length - next.length));
+    void import('../app/actions/preferences').then(({ markNotificationsReadAction }) =>
+      markNotificationsReadAction(next),
+    );
   };
 
   return (
@@ -2079,15 +2081,38 @@ export function SettingsView({
   dark,
   setDark,
   user,
+  initialPreferences,
 }: {
   dark: boolean;
   setDark: (value: boolean) => void;
   user?: { name: string; email: string };
+  initialPreferences?: {
+    browserNotifications: boolean;
+    emailNotifications: boolean;
+    weeklySummary: boolean;
+    aiRead: boolean;
+    aiMove: boolean;
+    aiCreate: boolean;
+  };
 }) {
   const [activeSection, setActiveSection] = useState('akun');
   const persistedSetter = (key: string, setter: (value: boolean) => void) => (value: boolean) => {
     window.localStorage.setItem(`mio-setting-${key}`, String(value));
     setter(value);
+    const serverKeys = {
+      browser: 'browserNotifications',
+      email: 'emailNotifications',
+      weekly: 'weeklySummary',
+      'ai-read': 'aiRead',
+      'ai-move': 'aiMove',
+      'ai-create': 'aiCreate',
+    } as const;
+    const serverKey = serverKeys[key as keyof typeof serverKeys];
+    if (serverKey) {
+      void import('../app/actions/preferences').then(({ updatePreferenceAction }) =>
+        updatePreferenceAction(serverKey, value),
+      );
+    }
   };
   const savedSetting = (key: string, fallback: boolean) => {
     if (typeof window === 'undefined') return fallback;
@@ -2095,12 +2120,12 @@ export function SettingsView({
     return value === null ? fallback : value === 'true';
   };
   const [calendar, setCalendar] = useState(() => savedSetting('calendar', false));
-  const [browser, setBrowser] = useState(() => savedSetting('browser', false));
-  const [email, setEmailNotif] = useState(() => savedSetting('email', false));
-  const [weekly, setWeekly] = useState(() => savedSetting('weekly', false));
-  const [aiMove, setAiMove] = useState(() => savedSetting('ai-move', true));
-  const [aiRead, setAiRead] = useState(() => savedSetting('ai-read', true));
-  const [aiCreate, setAiCreate] = useState(() => savedSetting('ai-create', false));
+  const [browser, setBrowser] = useState(initialPreferences?.browserNotifications ?? false);
+  const [email, setEmailNotif] = useState(initialPreferences?.emailNotifications ?? false);
+  const [weekly, setWeekly] = useState(initialPreferences?.weeklySummary ?? false);
+  const [aiMove, setAiMove] = useState(initialPreferences?.aiMove ?? true);
+  const [aiRead, setAiRead] = useState(initialPreferences?.aiRead ?? true);
+  const [aiCreate, setAiCreate] = useState(initialPreferences?.aiCreate ?? false);
 
   const sections = [
     { id: 'akun', label: 'Akun', icon: UserRound },

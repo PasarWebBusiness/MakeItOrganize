@@ -21,9 +21,9 @@ Label pada dokumen ini:
 | Workspace & authorization | — | WS-001–WS-003 | WS-004–WS-007 | Registrasi membuat personal workspace dan membership owner. Isolasi task menggunakan workspace pengguna, tetapi kebijakan lintas seluruh resource, kolaborasi, invite, serta transfer ownership belum lengkap. |
 | Courses | CRS-003 | CRS-001, CRS-002 | — | Course memiliki create/edit/soft-archive persisten dan dapat dihubungkan ke task/event. CRUD semester dan hubungan ke seluruh jenis resource masih belum lengkap. |
 | Tasks | — | TASK-001–TASK-004 | — | Create, rename, toggle, delete, filter, dan pengelompokan tersedia; relasi/metadata, audit, validasi, serta seluruh acceptance criteria belum lengkap. |
-| Calendar | — | CAL-001, CAL-002 | CAL-003–CAL-008 | Event lokal memiliki create/edit/delete persisten, agenda/month view, timezone Asia/Jakarta, dan relasi course. Day/week view, recurrence, reminder, serta seluruh sinkronisasi Google belum ada. |
+| Calendar | — | CAL-001, CAL-002, CAL-003 | CAL-004–CAL-008 | Event lokal memiliki create/edit/delete persisten, agenda serta tampilan bulan/minggu/tahun, timezone Asia/Jakarta, dan relasi course. Recurrence, reminder, serta seluruh sinkronisasi Google belum ada. |
 | Files | — | FILE-001, FILE-004, FILE-007 | FILE-002, FILE-003, FILE-005, FILE-006, FILE-008–FILE-010 | File manager interaktif masih memakai state lokal. Upload object storage, signed URL, hash, scan, version restore, delete lifecycle, dan retention belum ada. |
-| Notes | — | NOTE-001, NOTE-003 | NOTE-002 | Editor Markdown ringan tersedia di klien; autosave persisten, versioning, dan permission enforcement belum lengkap. |
+| Notes | — | NOTE-001, NOTE-003 | NOTE-002 | Editor rich-text tersedia di klien; sanitization, autosave persisten, versioning, dan permission enforcement belum lengkap. |
 | Canvas | — | CAN-001, CAN-002 | CAN-003 | Pen, highlighter, eraser, undo/redo tersedia. Zoom/pan, autosave, revision, dan export PDF belum lengkap. |
 | Search | — | SRCH-002 | SRCH-001 | Filter per view tersedia, tetapi pencarian global terotorisasi belum ada. |
 | Dashboard | — | DASH-001, DASH-002 | DASH-003 | Dashboard merangkum task aktual dan kartu modul; agregasi lengkap serta fault isolation belum tersedia. |
@@ -43,6 +43,16 @@ Label pada dokumen ini:
 - Calendar D1 mencakup create, edit, delete, validasi tanggal/waktu, agenda, month view, dan relasi course.
 - Registrasi kini membuat membership owner untuk personal workspace dalam transaksi yang sama.
 - Kontrol yang belum aktif—Google OAuth, Google Calendar, dan sejumlah AI/integration action—ditandai sebagai belum tersedia, bukan dibuat seolah-olah sudah terhubung.
+- Authorization server terpusat memeriksa membership aktif dan role capability sebelum operasi workspace.
+- Session token disimpan sebagai hash SHA-256; token mentah hanya berada pada cookie HttpOnly.
+- Fondasi integrasi menyediakan external identity, OAuth transaction dengan state hash dan PKCE, encrypted token fields, connection health, sync cursor, idempotent integration job, dan transactional outbox.
+- Preferensi notifikasi serta izin AI memiliki jalur persistensi D1; localStorage hanya menjadi cache UI perangkat.
+- Rate limit login/register memakai bucket D1 yang menggabungkan alamat sumber dan email dalam bentuk hash.
+- ADR-0004 menetapkan Sites/Cloudflare Workers, D1, dan R2 sebagai runtime initial release; arsitektur Google Cloud menjadi target migrasi, bukan runtime paralel.
+
+## Integration readiness gate
+
+Fondasi kode **siap untuk mulai implementasi adapter** Google OAuth, Calendar, Tasks, Drive, dan Gemini secara bertahap. Ini tidak berarti connector sudah siap produksi. Sebelum public launch masih wajib tersedia callback OAuth lengkap, secret deployment, refresh/revocation flow, webhook verification, worker/retry runner, file upload security, AI authorization executor, persistent audit emission, dan integration/E2E security tests.
 
 ## Bukti quality gate
 

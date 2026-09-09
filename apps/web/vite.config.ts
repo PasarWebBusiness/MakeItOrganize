@@ -4,10 +4,7 @@ import vinext from 'vinext';
 import { defineConfig } from 'vite';
 import hostingConfig from './.openai/hosting.json' with { type: 'json' };
 
-const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
-  '00000000-0000-4000-8000-000000000000';
-
-const { d1, r2 } = hostingConfig;
+const { r2 } = hostingConfig;
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === 'seatbelt';
@@ -16,15 +13,10 @@ const localBindingConfig = {
   main: 'vinext/server/fetch-handler',
   compatibility_date: '2024-09-23',
   compatibility_flags: ['nodejs_compat_v2'],
-  d1_databases: d1
-    ? [
-        {
-          binding: d1,
-          database_name: 'site-creator-d1',
-          database_id: SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
-        },
-      ]
-    : [],
+  // D1 is declared once in wrangler.toml so the production output does not
+  // contain duplicate bindings. Sites still reads the logical binding name
+  // from .openai/hosting.json during deployment.
+  d1_databases: [],
   r2_buckets: r2
     ? [
         {

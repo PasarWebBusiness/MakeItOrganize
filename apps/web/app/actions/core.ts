@@ -1,21 +1,11 @@
 'use server';
 
 import { getDb } from '@/db';
-import { calendarEvents, courses, tasks, workspaces } from '@/db/schema';
-import { getCurrentUser } from '@/lib/auth';
+import { calendarEvents, courses, tasks } from '@/db/schema';
+import { requireDefaultWorkspace } from '@/lib/authorization';
 import { TaskStatus } from '@/lib/types';
 import { eq, and, desc, isNull } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-
-async function getPersonalWorkspaceId(userId: string) {
-  const db = getDb();
-  const [ws] = await db
-    .select()
-    .from(workspaces)
-    .where(and(eq(workspaces.ownerId, userId), eq(workspaces.type, 'personal')))
-    .limit(1);
-  return ws?.id;
-}
 
 const priorities = new Set(['high', 'medium', 'low']);
 const taskStatuses = new Set<TaskStatus>([
@@ -79,11 +69,7 @@ async function findCourseId(
 }
 
 export async function fetchUserCourses() {
-  const user = await getCurrentUser();
-  if (!user) return [];
-
-  const workspaceId = await getPersonalWorkspaceId(user.id);
-  if (!workspaceId) return [];
+  const { workspaceId } = await requireDefaultWorkspace('read');
 
   const db = getDb();
   return db
@@ -106,11 +92,7 @@ export async function createCourseAction(data: {
   lecturer?: string;
   tone?: string;
 }) {
-  const user = await getCurrentUser();
-  if (!user) throw new Error('Unauthorized');
-
-  const workspaceId = await getPersonalWorkspaceId(user.id);
-  if (!workspaceId) throw new Error('No personal workspace found');
+  const { workspaceId } = await requireDefaultWorkspace('create');
 
   const name = requireText(data.name, 'Nama mata kuliah', 120);
   const code = data.code?.trim().slice(0, 32) || null;
@@ -149,11 +131,7 @@ export async function updateCourseAction(
   courseId: string,
   data: { name: string; code?: string; lecturer?: string; tone?: string },
 ) {
-  const user = await getCurrentUser();
-  if (!user) throw new Error('Unauthorized');
-
-  const workspaceId = await getPersonalWorkspaceId(user.id);
-  if (!workspaceId) throw new Error('No personal workspace found');
+  const { workspaceId } = await requireDefaultWorkspace('update');
 
   const name = requireText(data.name, 'Nama mata kuliah', 120);
   const tone = data.tone && courseTones.has(data.tone) ? data.tone : 'blue';
@@ -193,11 +171,7 @@ export async function updateCourseAction(
 }
 
 export async function archiveCourseAction(courseId: string) {
-  const user = await getCurrentUser();
-  if (!user) throw new Error('Unauthorized');
-
-  const workspaceId = await getPersonalWorkspaceId(user.id);
-  if (!workspaceId) throw new Error('No personal workspace found');
+  const { workspaceId } = await requireDefaultWorkspace('delete');
 
   const db = getDb();
   await db
@@ -215,10 +189,7 @@ export async function archiveCourseAction(courseId: string) {
 }
 
 export async function fetchUserCalendarEvents() {
-  const user = await getCurrentUser();
-  if (!user) return [];
-  const workspaceId = await getPersonalWorkspaceId(user.id);
-  if (!workspaceId) return [];
+  const { workspaceId } = await requireDefaultWorkspace('read');
 
   const db = getDb();
   return db
@@ -244,10 +215,7 @@ export async function createCalendarEventAction(data: {
   endTime?: string;
   courseName?: string;
 }) {
-  const user = await getCurrentUser();
-  if (!user) throw new Error('Unauthorized');
-  const workspaceId = await getPersonalWorkspaceId(user.id);
-  if (!workspaceId) throw new Error('No personal workspace found');
+  const { workspaceId } = await requireDefaultWorkspace('create');
 
   const title = requireText(data.title, 'Judul event', 200);
   const startsAt = jakartaDate(data.date, data.startTime || '00:00');
@@ -283,10 +251,7 @@ export async function updateCalendarEventAction(
     courseName?: string;
   },
 ) {
-  const user = await getCurrentUser();
-  if (!user) throw new Error('Unauthorized');
-  const workspaceId = await getPersonalWorkspaceId(user.id);
-  if (!workspaceId) throw new Error('No personal workspace found');
+  const { workspaceId } = await requireDefaultWorkspace('update');
 
   const startsAt = jakartaDate(data.date, data.startTime || '00:00');
   const endsAt = data.endTime
@@ -315,10 +280,7 @@ export async function updateCalendarEventAction(
 }
 
 export async function deleteCalendarEventAction(eventId: string) {
-  const user = await getCurrentUser();
-  if (!user) throw new Error('Unauthorized');
-  const workspaceId = await getPersonalWorkspaceId(user.id);
-  if (!workspaceId) throw new Error('No personal workspace found');
+  const { workspaceId } = await requireDefaultWorkspace('delete');
 
   const db = getDb();
   await db
@@ -333,12 +295,8 @@ export async function deleteCalendarEventAction(eventId: string) {
 }
 
 export async function fetchUserTasks() {
-  const user = await getCurrentUser();
-  if (!user) return [];
-
+  const { workspaceId } = await requireDefaultWorkspace('read');
   const db = getDb();
-  const workspaceId = await getPersonalWorkspaceId(user.id);
-  if (!workspaceId) return [];
 
   return await db
     .select({
@@ -363,11 +321,7 @@ export async function createTaskAction(data: {
   dueAt?: number;
   priority: 'high' | 'medium' | 'low';
 }) {
-  const user = await getCurrentUser();
-  if (!user) throw new Error('Unauthorized');
-
-  const workspaceId = await getPersonalWorkspaceId(user.id);
-  if (!workspaceId) throw new Error('No personal workspace found');
+  const { user, workspaceId } = await requireDefaultWorkspace('create');
 
   const title = requireText(data.title, 'Judul tugas', 200);
   if (!priorities.has(data.priority)) throw new Error('Prioritas tidak valid');
@@ -397,13 +351,8 @@ export async function createTaskAction(data: {
 }
 
 export async function toggleTaskAction(taskId: string, newStatus: TaskStatus) {
-  const user = await getCurrentUser();
-  if (!user) throw new Error('Unauthorized');
-
   if (!taskStatuses.has(newStatus)) throw new Error('Status tidak valid');
-
-  const workspaceId = await getPersonalWorkspaceId(user.id);
-  if (!workspaceId) throw new Error('No personal workspace found');
+  const { workspaceId } = await requireDefaultWorkspace('update');
 
   const db = getDb();
   await db
@@ -415,11 +364,7 @@ export async function toggleTaskAction(taskId: string, newStatus: TaskStatus) {
 }
 
 export async function updateTaskTitleAction(taskId: string, title: string) {
-  const user = await getCurrentUser();
-  if (!user) throw new Error('Unauthorized');
-
-  const workspaceId = await getPersonalWorkspaceId(user.id);
-  if (!workspaceId) throw new Error('No personal workspace found');
+  const { workspaceId } = await requireDefaultWorkspace('update');
 
   const cleanTitle = requireText(title, 'Judul tugas', 200);
 
@@ -433,11 +378,7 @@ export async function updateTaskTitleAction(taskId: string, title: string) {
 }
 
 export async function deleteTaskAction(taskId: string) {
-  const user = await getCurrentUser();
-  if (!user) throw new Error('Unauthorized');
-
-  const workspaceId = await getPersonalWorkspaceId(user.id);
-  if (!workspaceId) throw new Error('No personal workspace found');
+  const { workspaceId } = await requireDefaultWorkspace('delete');
 
   const db = getDb();
   await db

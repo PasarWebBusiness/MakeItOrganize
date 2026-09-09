@@ -29,7 +29,7 @@
 
 ## 3. Authentication controls
 
-- Password hash: Argon2id dengan parameter dituning sesuai runtime; fallback hanya melalui ADR.
+- Password hash: Argon2id adalah target; scrypt digunakan sebagai memory-hard fallback private-alpha sesuai ADR-0005 dan wajib ditinjau sebelum public beta.
 - Reset/verification token: random high entropy, hash at rest, single-use, short expiry.
 - Re-authentication untuk transfer owner, link/unlink identity, revoke all sessions, data export/delete, dan perubahan security.
 - Session ID di-rotate setelah login/privilege change; revoke server-side efektif segera.
@@ -122,4 +122,3 @@ Severity, on-call owner, dan kontak ditetapkan sebelum beta. Runbook minimum:
 ## 12. Pelaporan kerentanan
 
 Sebelum repository dibuka publik, tambahkan `SECURITY.md` di root berisi kanal private disclosure yang nyata. Jangan memakai public issue untuk vulnerability yang dapat dieksploitasi.
-

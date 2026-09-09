@@ -1,7 +1,7 @@
 import { getDb } from '@/db';
 import { sessions, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 
 const SESSION_COOKIE_NAME = 'mio_session';
@@ -21,18 +21,23 @@ export function hashPassword(password: string): string {
 
 export function verifyPassword(password: string, hash: string): boolean {
   const [salt, key] = hash.split(':');
-  if (!salt || !key) return false;
+  if (!salt || !key || !/^[a-f0-9]{128}$/i.test(key)) return false;
   
   const keyBuffer = Buffer.from(key, 'hex');
   const derivedKey = scryptSync(password, salt, 64);
   return timingSafeEqual(keyBuffer, derivedKey);
 }
 
+function hashSessionToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
 // --- Session Management ---
 
 export async function createSession(userId: string) {
   const db = getDb();
-  const sessionId = toHex(randomBytes(32));
+  const sessionToken = toHex(randomBytes(32));
+  const sessionId = hashSessionToken(sessionToken);
   const expiresAt = new Date(Date.now() + SESSION_EXPIRY_MS);
   
   await db.insert(sessions).values({
@@ -42,7 +47,7 @@ export async function createSession(userId: string) {
   });
 
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, sessionId, {
+  cookieStore.set(SESSION_COOKIE_NAME, sessionToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -50,16 +55,16 @@ export async function createSession(userId: string) {
     path: '/',
   });
 
-  return sessionId;
+  return sessionToken;
 }
 
 export async function clearSession() {
   const cookieStore = await cookies();
-  const sessionId = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   
-  if (sessionId) {
+  if (sessionToken) {
     const db = getDb();
-    await db.delete(sessions).where(eq(sessions.id, sessionId));
+    await db.delete(sessions).where(eq(sessions.id, hashSessionToken(sessionToken)));
   }
   
   cookieStore.delete(SESSION_COOKIE_NAME);
@@ -67,22 +72,22 @@ export async function clearSession() {
 
 export async function getCurrentUser() {
   const cookieStore = await cookies();
-  const sessionId = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   
-  if (!sessionId) return null;
+  if (!sessionToken) return null;
   
   const db = getDb();
   
   const [session] = await db
     .select()
     .from(sessions)
-    .where(eq(sessions.id, sessionId))
+    .where(eq(sessions.id, hashSessionToken(sessionToken)))
     .limit(1);
   
   if (!session) return null;
   
   if (session.expiresAt.getTime() < Date.now()) {
-    await db.delete(sessions).where(eq(sessions.id, sessionId));
+    await db.delete(sessions).where(eq(sessions.id, hashSessionToken(sessionToken)));
     return null;
   }
   
