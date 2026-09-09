@@ -1,7 +1,7 @@
 'use server';
 
 import { getDb } from '@/db';
-import { passwordCredentials, users, workspaces } from '@/db/schema';
+import { memberships, passwordCredentials, users, workspaces } from '@/db/schema';
 import { createSession } from '@/lib/auth';
 import { hashPassword, verifyPassword } from '@/lib/auth';
 import { eq } from 'drizzle-orm';
@@ -92,7 +92,13 @@ export async function registerAction(formData: FormData) {
       name: `Workspace ${name}`,
       type: 'personal',
       ownerId: userId,
-    })
+    }),
+    db.insert(memberships).values({
+      workspaceId,
+      userId,
+      role: 'owner',
+      status: 'active',
+    }),
   ]);
 
   await createSession(userId);

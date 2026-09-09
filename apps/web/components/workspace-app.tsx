@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import {
   Bell,
   BookOpen,
   CalendarDays,
-  Check,
   CheckSquare2,
   FileText,
   Files,
@@ -32,7 +32,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { seedActivities, seedFiles, seedNotes, seedTasks, seedCourses, seedCalendarEvents } from '@/lib/demo-data';
-import { createTaskAction, toggleTaskAction, deleteTaskAction } from '@/app/actions/core';
+import {
+  createTaskAction,
+  deleteTaskAction,
+  toggleTaskAction,
+  updateTaskTitleAction,
+} from '@/app/actions/core';
 import type {
   Activity,
   CalendarEvent,
@@ -87,6 +92,7 @@ const navigation: {
     section: 'Intelligence',
   },
   { label: 'History', view: 'history', icon: History },
+  { label: 'Notifikasi', view: 'notifications', icon: Bell },
   { label: 'Settings', view: 'settings', icon: Settings },
 ];
 
@@ -96,7 +102,7 @@ const titles: Record<
 > = {
   dashboard: {
     eyebrow: 'SELASA, 8 SEPTEMBER',
-    title: 'Selamat sore, Alya.',
+    title: 'Selamat datang.',
     description: 'Satu kelas lagi dan dua hal penting perlu selesai hari ini.',
   },
   calendar: {
@@ -166,7 +172,11 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
   const [activities, setActivities] = useState<Activity[]>(seedActivities);
   const [courses] = useState<Course[]>(seedCourses);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>(seedCalendarEvents);
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(() =>
+    typeof document === 'undefined'
+      ? false
+      : document.documentElement.classList.contains('dark'),
+  );
   const [mobileOpen, setMobileOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [taskTitle, setTaskTitle] = useState('');
@@ -179,6 +189,7 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
+    localStorage.setItem('mio-theme', dark ? 'dark' : 'light');
   }, [dark]);
 
   const addActivity = (activity: Activity) =>
@@ -221,19 +232,33 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
     try {
       const realId = await createTaskAction({
         title: clean,
-        courseId: undefined, // Default to null for now as course names aren't mapped to IDs yet
+        courseName: course,
         dueAt: taskDue ? new Date(taskDue).getTime() : undefined,
         priority: taskPriority,
       });
       // Replace optimistic ID with real ID silently
       setTasks(current => current.map(t => t.id === optimisticId ? { ...t, id: realId } : t));
-    } catch (e) {
-      console.error(e);
-      // Optional: rollback on failure
+    } catch (error) {
+      console.error(error);
+      setTasks((current) => current.filter((item) => item.id !== optimisticId));
+      addActivity({
+        id: crypto.randomUUID(),
+        actor: 'Sistem',
+        action: 'gagal membuat task',
+        resource: clean,
+        time: 'Baru saja',
+        status: 'failed',
+        authorization: 'Server validation',
+      });
     }
     
     return task;
   };
+
+  const addTaskRef = useRef(addTask);
+  useEffect(() => {
+    addTaskRef.current = addTask;
+  });
 
   const toggleTask = (id: string) => {
     const target = tasks.find((t) => t.id === id);
@@ -248,14 +273,23 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
     );
     
     // Server execution
-    toggleTaskAction(id, newStatus).catch(console.error);
+    toggleTaskAction(id, newStatus).catch((error) => {
+      console.error(error);
+      setTasks((current) =>
+        current.map((task) =>
+          task.id === id ? { ...task, status: target.status } : task,
+        ),
+      );
+    });
   };
 
   const editTask = (id: string, patch: Partial<Task>) => {
-    // Only implemented locally for now until we have an edit server action
     setTasks((current) =>
       current.map((task) => (task.id === id ? { ...task, ...patch } : task)),
     );
+    if (patch.title) {
+      updateTaskTitleAction(id, patch.title).catch(console.error);
+    }
     addActivity({
       id: crypto.randomUUID(),
       actor: 'Kamu',
@@ -373,11 +407,11 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
             additionalProperties: false,
           },
           annotations: { readOnlyHint: false, untrustedContentHint: false },
-          execute(input: unknown) {
+          async execute(input: unknown) {
             const value = input as { title?: unknown; course?: unknown };
             if (typeof value.title !== 'string' || !value.title.trim())
               throw new Error('title wajib berupa teks');
-            const task = addTask(
+            const task = await addTaskRef.current(
               value.title,
               typeof value.course === 'string'
                 ? value.course
@@ -407,7 +441,17 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
         title: selectedCourse.name,
         description: selectedCourse.lecturer,
       }
-    : titles[view];
+    : view === 'dashboard'
+      ? {
+          ...titles.dashboard,
+          eyebrow: new Intl.DateTimeFormat('id-ID', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+          }).format(new Date()).toUpperCase(),
+          title: `Selamat datang, ${user?.name?.split(' ')[0] || 'Kawan'}.`,
+        }
+      : titles[view];
 
   const activeTasks = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled');
 
@@ -422,7 +466,16 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
       )}
       <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
         <div className="brand" aria-label="MakeItOrganize">
-          <img src="/logo.svg" alt="MakeItOrganize Logo" style={{ height: '36px', marginTop: '4px' }} />
+          <Image
+            src="/favicon.svg"
+            alt=""
+            width={40}
+            height={40}
+            priority
+          />
+          <span className="brand-logo-text">
+            MakeIt<span>Organize</span>
+          </span>
           <button
             className="close-mobile"
             onClick={() => setMobileOpen(false)}
@@ -583,7 +636,7 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
           {view === 'history' && <HistoryView activities={activities} />}
           {view === 'notifications' && <NotificationsView />}
           {view === 'settings' && (
-            <SettingsView dark={dark} setDark={setDark} />
+            <SettingsView dark={dark} setDark={setDark} user={user} />
           )}
         </div>
       </main>
@@ -635,9 +688,8 @@ export function WorkspaceApp({ user, initialTasks }: { user?: { name: string; em
                 onChange={(event) => setTaskTitle(event.target.value)}
                 placeholder="Contoh: Kerjakan latihan Bab 4"
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') addTask();
+                  if (event.key === 'Enter') void addTask();
                 }}
-                autoFocus
               />
             </label>
             <label>

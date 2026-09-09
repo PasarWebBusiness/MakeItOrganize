@@ -13,7 +13,9 @@ Dokumentasi ini adalah baseline fundamental MakeItOrganize. Jika brief, implemen
 | [SECURITY.md](SECURITY.md) | Threat model, access control, OAuth, AI permission, dan audit | Baseline |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Identitas visual, token, komponen, responsivitas, dan aksesibilitas | Baseline |
 | [TEST_STRATEGY.md](TEST_STRATEGY.md) | Quality gates, level test, dan skenario kritis | Baseline |
+| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Traceability requirement, bukti audit, dan gap implementasi aktual | Active |
 | [ROADMAP.md](ROADMAP.md) | Urutan implementasi tanpa menghapus scope rilis lengkap | Proposed |
+| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Traceability requirement, bukti audit, dan gap implementasi aktual | Living document |
 | [GLOSSARY.md](GLOSSARY.md) | Istilah domain resmi | Baseline |
 | [adr/](adr/README.md) | Log keputusan arsitektur | Active |
 
@@ -41,4 +43,3 @@ Dokumentasi ini adalah baseline fundamental MakeItOrganize. Jika brief, implemen
 4. Batas ukuran file, quota per workspace, dan paket komersial.
 5. Model Gemini per use case dan batas biaya/token.
 6. Apakah integrasi native Google Docs/Sheets/Slides hanya berupa link/metadata atau termasuk ekspor-impor konten pada rilis awal.
-

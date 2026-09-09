@@ -4,6 +4,26 @@ File ini mendokumentasikan riwayat perubahan (changelog) pada project untuk memu
 
 ---
 
+## [2026-09-09] - Audit Kepatuhan, GSM, dan Hardening
+
+**Audit & traceability**
+- Mengaudit implementasi terhadap `EarlyBrief.md`, PRD, SRS, arsitektur, data model, security, design system, test strategy, dan roadmap.
+- Menambahkan `docs/IMPLEMENTATION_STATUS.md` untuk memisahkan requirement yang terpenuhi, sebagian, dan belum tersedia.
+- Menegaskan integrasi yang belum memiliki backend/credential sebagai belum tersedia agar UI tidak menyesatkan.
+
+**UI/UX & GSM**
+- Mengganti pemuatan font Poppins runtime dengan aset lokal `@fontsource/poppins` bobot 400/500/600/700.
+- Menyatukan token semantik light/dark, typography, spacing, radius, shadow, target interaksi, focus, dan reduced motion.
+- Merapikan seluruh view utama dan auth pada desktop/mobile; menambahkan layout lengkap untuk AI, activity, notification, dan settings.
+
+**Data & reliability**
+- Memperbaiki task create agar menghormati course, menambahkan rename persisten, dan rollback optimistic UI ketika server action gagal.
+- Membuat membership owner saat registrasi personal workspace.
+- Memperbaiki kontrak async WebMCP dan membersihkan temuan TypeScript, lint, serta accessibility dasar.
+- Memutakhirkan Cloudflare tooling dan memindahkan CLI `shadcn` ke development dependencies.
+
+---
+
 ## [2026-09-09] - UI/UX Enhancements & Tasks CRUD (Phase 2 Start)
 
 **🎨 UI/UX & Branding Enhancements**
@@ -31,4 +51,3 @@ File ini mendokumentasikan riwayat perubahan (changelog) pada project untuk memu
 **🔐 Identity & Authentication**
 - Menerapkan fungsi otentikasi login & registrasi manual (node `crypto` scrypt hashing) dengan mekanisme `cookies()`.
 - Mengamankan routing di `app/page.tsx` untuk memastikan hanya user terotentikasi yang bisa masuk Dashboard.
-

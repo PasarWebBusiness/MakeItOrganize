@@ -26,15 +26,25 @@ export async function fetchUserTasks() {
   if (!workspaceId) return [];
 
   return await db
-    .select()
+    .select({
+      id: tasks.id,
+      title: tasks.title,
+      description: tasks.description,
+      dueAt: tasks.dueAt,
+      priority: tasks.priority,
+      status: tasks.status,
+      courseName: courses.name,
+      createdAt: tasks.createdAt,
+    })
     .from(tasks)
+    .leftJoin(courses, eq(tasks.courseId, courses.id))
     .where(eq(tasks.workspaceId, workspaceId))
     .orderBy(desc(tasks.createdAt));
 }
 
 export async function createTaskAction(data: {
   title: string;
-  courseId?: string;
+  courseName?: string;
   dueAt?: number;
   priority: 'high' | 'medium' | 'low';
 }) {
@@ -46,13 +56,28 @@ export async function createTaskAction(data: {
 
   const db = getDb();
   const id = crypto.randomUUID();
+  let courseId: string | null = null;
+
+  if (data.courseName) {
+    const [course] = await db
+      .select({ id: courses.id })
+      .from(courses)
+      .where(
+        and(
+          eq(courses.workspaceId, workspaceId),
+          eq(courses.name, data.courseName),
+        ),
+      )
+      .limit(1);
+    courseId = course?.id ?? null;
+  }
 
   await db.insert(tasks).values({
     id,
     workspaceId,
     creatorId: user.id,
     title: data.title,
-    courseId: data.courseId || null,
+    courseId,
     dueAt: data.dueAt ? new Date(data.dueAt) : null,
     priority: data.priority,
     status: 'todo',
@@ -73,6 +98,25 @@ export async function toggleTaskAction(taskId: string, newStatus: TaskStatus) {
   await db
     .update(tasks)
     .set({ status: newStatus, completedAt: newStatus === 'done' ? new Date() : null })
+    .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId)));
+
+  revalidatePath('/');
+}
+
+export async function updateTaskTitleAction(taskId: string, title: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Unauthorized');
+
+  const workspaceId = await getPersonalWorkspaceId(user.id);
+  if (!workspaceId) throw new Error('No personal workspace found');
+
+  const cleanTitle = title.trim();
+  if (!cleanTitle) throw new Error('Title is required');
+
+  const db = getDb();
+  await db
+    .update(tasks)
+    .set({ title: cleanTitle, updatedAt: new Date() })
     .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId)));
 
   revalidatePath('/');

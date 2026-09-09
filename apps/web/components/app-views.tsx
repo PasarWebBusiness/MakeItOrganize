@@ -7,7 +7,6 @@ import {
   Bell,
   BookOpen,
   CalendarDays,
-  Check,
   CheckCircle2,
   CheckSquare2,
   ChevronLeft,
@@ -29,7 +28,6 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
-  Star,
   Sun,
   Trash2,
   Upload,
@@ -89,14 +87,10 @@ function EmptyState({
 function TaskRow({
   task,
   onToggle,
-  onEdit,
-  onDelete,
   compact,
 }: {
   task: Task;
   onToggle: (id: string) => void;
-  onEdit?: (id: string, patch: Partial<Task>) => void;
-  onDelete?: (id: string) => void;
   compact?: boolean;
 }) {
   const overdue = isOverdue(task.dueDate) && task.status !== 'done';
@@ -349,7 +343,7 @@ export function CalendarView({
           </div>
           <div>
             <button className="view-pill active">Bulan</button>
-            <button className="view-pill">Minggu</button>
+            <button className="view-pill" disabled title="Tampilan minggu masih dalam pengembangan">Minggu</button>
             <Button onClick={() => setCreateOpen(true)}>
               <Plus size={16} /> Event
             </Button>
@@ -366,13 +360,11 @@ export function CalendarView({
             const day = i + 1;
             const dayEvents = getEventsForDay(day);
             return (
-              <div
+              <button
+                type="button"
                 className={`day-cell ${isToday(day) ? 'today' : ''} ${selectedDay === day ? 'selected' : ''}`}
                 key={day}
                 onClick={() => setSelectedDay(day)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && setSelectedDay(day)}
                 aria-label={`${day} ${monthName}`}
               >
                 <span>{day}</span>
@@ -384,7 +376,7 @@ export function CalendarView({
                 {dayEvents.length > 2 && (
                   <i className="cal-event-more">+{dayEvents.length - 2}</i>
                 )}
-              </div>
+              </button>
             );
           })}
         </div>
@@ -414,9 +406,9 @@ export function CalendarView({
           <Cloud size={18} />
           <div>
             <strong>Google Calendar</strong>
-            <small>Tersinkron 2 menit lalu</small>
+            <small>Belum terhubung</small>
           </div>
-          <span>Aktif</span>
+          <span>Siapkan</span>
         </div>
         <Button className="agenda-add" variant="outline" onClick={() => setCreateOpen(true)}>
           <Plus size={15} /> Tambah event
@@ -425,8 +417,8 @@ export function CalendarView({
 
       {/* Create Event Dialog */}
       {createOpen && (
-        <div className="modal-overlay" onClick={() => setCreateOpen(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-card">
             <div className="modal-head">
               <strong>Tambah event</strong>
               <button onClick={() => setCreateOpen(false)} aria-label="Tutup">
@@ -440,7 +432,6 @@ export function CalendarView({
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="Contoh: Kelas Statistika II"
-                  autoFocus
                 />
               </label>
               <div className="form-row-2">
@@ -608,7 +599,6 @@ export function TasksView({
                       if (e.key === 'Enter') saveEdit(task.id);
                       if (e.key === 'Escape') setEditingId(null);
                     }}
-                    autoFocus
                   />
                 ) : (
                   <strong>{task.title}</strong>
@@ -991,14 +981,10 @@ export function FilesView({
     <>
       <input ref={inputRef} className="sr-only" type="file" multiple onChange={upload} />
       {contextMenu && (
-        <div
-          className="modal-overlay transparent"
-          onClick={() => setContextMenu(null)}
-        >
+        <div className="modal-overlay transparent">
           <div
             className="context-menu"
             style={{ top: contextMenu.y, left: contextMenu.x }}
-            onClick={(e) => e.stopPropagation()}
           >
             <button onClick={() => { startRename(files.find((f) => f.id === contextMenu.id)!); }}>
               <Pencil size={14} /> Ganti nama
@@ -1048,11 +1034,11 @@ export function FilesView({
         {folders.length > 0 && !courseFilter && (
           <div className="folder-row">
             {folders.map((f) => (
-              <div key={f.name} role="button" tabIndex={0} onClick={() => setCourseFilter(f.name)} onKeyDown={(e) => e.key === 'Enter' && setCourseFilter(f.name)}>
+              <button type="button" key={f.name} onClick={() => setCourseFilter(f.name)}>
                 <Folder />
                 <strong>{f.name}</strong>
                 <small>{f.count} item</small>
-              </div>
+              </button>
             ))}
           </div>
         )}
@@ -1080,7 +1066,6 @@ export function FilesView({
                       if (e.key === 'Enter') saveRename();
                       if (e.key === 'Escape') setRenamingId(null);
                     }}
-                    autoFocus
                   />
                 ) : (
                   <strong>{file.name}</strong>
@@ -1131,6 +1116,7 @@ export function NotesView({
 }) {
   const [selected, setSelected] = useState(notes[0]?.id ?? '');
   const [search, setSearch] = useState('');
+  const editorRef = useRef<HTMLTextAreaElement>(null);
 
   const filtered = notes.filter(
     (n) =>
@@ -1159,6 +1145,23 @@ export function NotesView({
     const remaining = notes.filter((n) => n.id !== id);
     onDelete(id);
     setSelected(remaining[0]?.id ?? '');
+  };
+
+  const formatSelection = (prefix: string, suffix = prefix) => {
+    if (!note) return;
+    const editor = editorRef.current;
+    const start = editor?.selectionStart ?? note.body.length;
+    const end = editor?.selectionEnd ?? note.body.length;
+    const selectedText = note.body.slice(start, end);
+    const nextBody = `${note.body.slice(0, start)}${prefix}${selectedText}${suffix}${note.body.slice(end)}`;
+    update({ body: nextBody });
+    requestAnimationFrame(() => {
+      editorRef.current?.focus();
+      editorRef.current?.setSelectionRange(
+        start + prefix.length,
+        end + prefix.length,
+      );
+    });
   };
 
   return (
@@ -1203,14 +1206,14 @@ export function NotesView({
         <section className="panel note-editor">
           <div className="editor-toolbar">
             <div>
-              <button onClick={() => document.execCommand('bold')} title="Bold" aria-label="Bold">
+              <button onClick={() => formatSelection('**')} title="Tebal" aria-label="Tebal">
                 <strong>B</strong>
               </button>
-              <button onClick={() => document.execCommand('italic')} title="Italic" aria-label="Italic">
+              <button onClick={() => formatSelection('_')} title="Miring" aria-label="Miring">
                 <em>I</em>
               </button>
-              <button title="Heading" aria-label="Heading">H1</button>
-              <button title="List" aria-label="List">• List</button>
+              <button onClick={() => formatSelection('## ', '')} title="Heading" aria-label="Heading">H2</button>
+              <button onClick={() => formatSelection('- ', '')} title="Daftar" aria-label="Daftar">• List</button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>Tersimpan otomatis</span>
@@ -1245,6 +1248,7 @@ export function NotesView({
             </select>
           </div>
           <textarea
+            ref={editorRef}
             value={note.body}
             onChange={(event) => update({ body: event.target.value })}
             aria-label="Isi catatan"
@@ -1320,7 +1324,7 @@ export function AIView({
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      text: 'Halo, Alya. Aku siap membantu dengan jadwal, tugas, file, dan catatan yang dapat kamu akses.',
+      text: 'Halo! Mode demo siap membantu menjelajahi jadwal, tugas, file, dan catatan di workspace ini.',
     },
   ]);
   const [input, setInput] = useState('');
@@ -1410,7 +1414,7 @@ export function AIView({
         <div className="context-item">
           <CheckCircle2 size={17} />
           <span>
-            File<small>{files.length} file diindeks</small>
+            File<small>{files.length} file contoh tersedia</small>
           </span>
         </div>
         <div className="context-item">
@@ -1434,7 +1438,7 @@ export function AIView({
           </div>
           <div>
             <strong>MakeItOrganize AI</strong>
-            <small>Gemini · Context-aware</small>
+            <small>Demo lokal · Context-aware</small>
           </div>
           <span className="online-dot">Siap</span>
         </div>
@@ -1702,13 +1706,15 @@ export function NotificationsView() {
 export function SettingsView({
   dark,
   setDark,
+  user,
 }: {
   dark: boolean;
   setDark: (value: boolean) => void;
+  user?: { name: string; email: string };
 }) {
   const [activeSection, setActiveSection] = useState('akun');
-  const [calendar, setCalendar] = useState(true);
-  const [browser, setBrowser] = useState(true);
+  const [calendar, setCalendar] = useState(false);
+  const [browser, setBrowser] = useState(false);
   const [email, setEmailNotif] = useState(false);
   const [weekly, setWeekly] = useState(false);
   const [aiMove, setAiMove] = useState(true);
@@ -1730,9 +1736,17 @@ export function SettingsView({
   ];
 
   const members = [
-    { name: 'Alya Rahman', email: 'alya@example.com', role: 'Owner', initials: 'AR' },
-    { name: 'Budi Santoso', email: 'budi@example.com', role: 'Editor', initials: 'BS' },
-    { name: 'Citra Dewi', email: 'citra@example.com', role: 'Viewer', initials: 'CD' },
+    {
+      name: user?.name || 'User',
+      email: user?.email || 'Belum ada email',
+      role: 'Owner',
+      initials: (user?.name || 'User')
+        .split(' ')
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join('')
+        .toUpperCase(),
+    },
   ];
 
   return (
@@ -1753,10 +1767,17 @@ export function SettingsView({
           <>
             <section className="panel settings-card">
               <div className="account-summary">
-                <span className="avatar large">AR</span>
+                <span className="avatar large">
+                  {(user?.name || 'User')
+                    .split(' ')
+                    .slice(0, 2)
+                    .map((part) => part[0])
+                    .join('')
+                    .toUpperCase()}
+                </span>
                 <div>
-                  <strong>Alya Rahman</strong>
-                  <small>alya@example.com</small>
+                  <strong>{user?.name || 'User'}</strong>
+                  <small>{user?.email || 'Belum ada email'}</small>
                 </div>
                 <Button variant="outline">Edit profil</Button>
               </div>
@@ -1767,9 +1788,10 @@ export function SettingsView({
               <SettingRow
                 icon={Cloud}
                 title="Google Calendar"
-                text="Sinkronisasi dua arah dengan kalender utama."
+                text="Memerlukan Google OAuth dan kredensial Calendar API."
                 checked={calendar}
                 onChange={setCalendar}
+                disabled
               />
             </section>
             <section className="panel settings-card">
@@ -1884,12 +1906,14 @@ function SettingRow({
   text,
   checked,
   onChange,
+  disabled = false,
 }: {
   icon: typeof Cloud;
   title: string;
   text: string;
   checked: boolean;
   onChange: (value: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="setting-row">
@@ -1900,7 +1924,7 @@ function SettingRow({
         <strong>{title}</strong>
         <small>{text}</small>
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
     </div>
   );
 }

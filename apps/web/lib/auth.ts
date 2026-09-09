@@ -1,5 +1,5 @@
 import { getDb } from '@/db';
-import { passwordCredentials, sessions, users } from '@/db/schema';
+import { sessions, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
@@ -7,12 +7,16 @@ import { cookies } from 'next/headers';
 const SESSION_COOKIE_NAME = 'mio_session';
 const SESSION_EXPIRY_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 // --- Password Hashing ---
 
 export function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString('hex');
+  const salt = toHex(randomBytes(16));
   const derivedKey = scryptSync(password, salt, 64);
-  return `${salt}:${derivedKey.toString('hex')}`;
+  return `${salt}:${toHex(derivedKey)}`;
 }
 
 export function verifyPassword(password: string, hash: string): boolean {
@@ -28,7 +32,7 @@ export function verifyPassword(password: string, hash: string): boolean {
 
 export async function createSession(userId: string) {
   const db = getDb();
-  const sessionId = randomBytes(32).toString('hex');
+  const sessionId = toHex(randomBytes(32));
   const expiresAt = new Date(Date.now() + SESSION_EXPIRY_MS);
   
   await db.insert(sessions).values({
