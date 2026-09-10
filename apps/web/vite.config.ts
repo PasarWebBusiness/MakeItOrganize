@@ -12,7 +12,7 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === 'seatbelt';
 const localBindingConfig = {
   main: 'vinext/server/fetch-handler',
   compatibility_date: '2024-09-23',
-  compatibility_flags: ['nodejs_compat_v2'],
+  compatibility_flags: ['nodejs_compat_v2', 'enable_weak_ref'],
   // D1 is declared once in wrangler.toml so the production output does not
   // contain duplicate bindings. Sites still reads the logical binding name
   // from .openai/hosting.json during deployment.

@@ -1,11 +1,11 @@
 # Status Implementasi dan Traceability
 
-**Tanggal audit:** 9 September 2026  
+**Tanggal audit:** 10 September 2026
 **Baseline:** `EarlyBrief.md`, PRD v1.0, SRS v1.0, dan dokumen fundamental pada direktori `docs/`.
 
 ## Ringkasan
 
-Implementasi saat ini adalah fondasi aplikasi dan prototipe interaktif yang sudah memiliki autentikasi email/password, workspace personal awal, penyimpanan task di Cloudflare D1, serta shell UI responsif untuk seluruh modul utama. Implementasi **belum memenuhi seluruh scope full initial release**. Integrasi Google, penyimpanan file R2/GCS, sinkronisasi Calendar dua arah, AI gateway/RAG/agent, audit log persisten, notifikasi, dan sejumlah kontrol keamanan produksi masih memerlukan implementasi backend.
+Implementasi saat ini adalah private alpha dengan autentikasi email/password dan Google, workspace personal, penyimpanan domain awal di Cloudflare D1, serta shell UI responsif. Tahap pertama Google OAuth sudah aktif pada level kode; pengujian end-to-end masih memerlukan credential environment. Implementasi **belum memenuhi seluruh scope full initial release**. Sinkronisasi Calendar/Tasks/Drive, penyimpanan file R2, AI gateway/RAG/agent, audit menyeluruh, notifikasi delivery, dan sejumlah kontrol keamanan produksi masih memerlukan backend lanjutan.
 
 Label pada dokumen ini:
 
@@ -17,7 +17,7 @@ Label pada dokumen ini:
 
 | Area | Terpenuhi | Sebagian | Belum | Catatan implementasi |
 |---|---|---|---|---|
-| Authentication | AUTH-002 | AUTH-001, AUTH-003, AUTH-008 | AUTH-004–AUTH-007 | Registrasi/login/logout aktif dan password memakai `scrypt`; verifikasi email, rate limit, OAuth linking, reset token, dan logout semua sesi belum tersedia. |
+| Authentication | AUTH-002, AUTH-005 | AUTH-001, AUTH-003, AUTH-006–AUTH-008 | AUTH-004 | Registrasi/login/logout lokal dan Google aktif pada level kode. OAuth memakai state, PKCE, nonce, verifikasi ID token, encrypted connection token, serta link dari Settings. Unlink menunggu step-up auth; email verification lokal, reset token, rotasi/revoke-all session, dan E2E credential test belum lengkap. |
 | Workspace & authorization | — | WS-001–WS-003 | WS-004–WS-007 | Registrasi membuat personal workspace dan membership owner. Isolasi task menggunakan workspace pengguna, tetapi kebijakan lintas seluruh resource, kolaborasi, invite, serta transfer ownership belum lengkap. |
 | Courses | CRS-003 | CRS-001, CRS-002 | — | Course memiliki create/edit/soft-archive persisten dan dapat dihubungkan ke task/event. CRUD semester dan hubungan ke seluruh jenis resource masih belum lengkap. |
 | Tasks | — | TASK-001–TASK-004 | — | Create, rename, toggle, delete, filter, dan pengelompokan tersedia; relasi/metadata, audit, validasi, serta seluruh acceptance criteria belum lengkap. |
@@ -42,7 +42,7 @@ Label pada dokumen ini:
 - Course D1 mencakup create, edit, duplicate guard, dan soft-archive; task dan event mempertahankan relasinya.
 - Calendar D1 mencakup create, edit, delete, validasi tanggal/waktu, agenda, month view, dan relasi course.
 - Registrasi kini membuat membership owner untuk personal workspace dalam transaksi yang sama.
-- Kontrol yang belum aktif—Google OAuth, Google Calendar, dan sejumlah AI/integration action—ditandai sebagai belum tersedia, bukan dibuat seolah-olah sudah terhubung.
+- Google OAuth login/registrasi serta koneksi workspace telah diimplementasikan; Calendar, Tasks, Drive, dan AI action tetap ditandai belum aktif sampai scope serta adapter masing-masing tersedia.
 - Authorization server terpusat memeriksa membership aktif dan role capability sebelum operasi workspace.
 - Session token disimpan sebagai hash SHA-256; token mentah hanya berada pada cookie HttpOnly.
 - Fondasi integrasi menyediakan external identity, OAuth transaction dengan state hash dan PKCE, encrypted token fields, connection health, sync cursor, idempotent integration job, dan transactional outbox.
@@ -52,7 +52,7 @@ Label pada dokumen ini:
 
 ## Integration readiness gate
 
-Fondasi kode **siap untuk mulai implementasi adapter** Google OAuth, Calendar, Tasks, Drive, dan Gemini secara bertahap. Ini tidak berarti connector sudah siap produksi. Sebelum public launch masih wajib tersedia callback OAuth lengkap, secret deployment, refresh/revocation flow, webhook verification, worker/retry runner, file upload security, AI authorization executor, persistent audit emission, dan integration/E2E security tests.
+Fondasi kode dan **adapter Google OAuth tahap 1** sudah tersedia. Calendar, Tasks, Drive, dan Gemini siap dikerjakan secara incremental, tetapi belum menjadi connector production. Sebelum public launch masih wajib tersedia secret deployment, token refresh/revocation dengan step-up auth, webhook verification, worker/retry runner, file upload security, AI authorization executor, persistent audit emission, serta integration/E2E security tests.
 
 ## Bukti quality gate
 

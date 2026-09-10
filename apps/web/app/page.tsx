@@ -7,6 +7,7 @@ import {
   fetchUserTasks,
 } from '@/app/actions/core';
 import { fetchUserPreferences } from '@/app/actions/preferences';
+import { getGoogleConnectionSummary } from '@/lib/google-identity';
 import type {
   CalendarEvent,
   Course,
@@ -53,11 +54,12 @@ export default async function HomePage() {
     redirect('/login');
   }
 
-  const [dbTasks, dbCourses, dbEvents, preferences] = await Promise.all([
+  const [dbTasks, dbCourses, dbEvents, preferences, googleConnection] = await Promise.all([
     fetchUserTasks(),
     fetchUserCourses(),
     fetchUserCalendarEvents(),
     fetchUserPreferences(),
+    getGoogleConnectionSummary(),
   ]);
   
   // Map DB schema to UI Task type
@@ -115,6 +117,7 @@ export default async function HomePage() {
         aiCreate: preferences.aiCreate,
         readNotificationIds: parseNotificationIds(preferences.readNotificationIds),
       }}
+      initialGoogleConnection={googleConnection}
     />
   );
 }

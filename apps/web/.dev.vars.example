@@ -1,4 +1,4 @@
-# Configure real values through the deployment secret manager. Never commit secrets.
+# Copy to .dev.vars for local development. Never commit the real file.
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_AUTH_REDIRECT_URI=http://localhost:3000/api/auth/google/callback

@@ -4,7 +4,7 @@ MakeItOrganize adalah *personal academic operating system* berbasis AI untuk men
 
 > Satu tempat untuk mengetahui apa yang harus dilakukan, kapan harus melakukannya, dan semua bahan yang diperlukan untuk melakukannya.
 
-Status saat ini: **discovery dan fondasi arsitektur**. Repository belum berisi implementasi aplikasi. Dokumen di folder `docs/` adalah sumber keputusan produk dan teknis sebelum scaffolding dimulai.
+Status saat ini: **private alpha dan implementasi integrasi bertahap**. Aplikasi web, autentikasi lokal, persistence D1, UI modul inti, serta tahap pertama Google OAuth sudah tersedia. Calendar/Tasks/Drive sync dan Gemini belum diaktifkan sampai adapter serta security gate masing-masing selesai.
 
 ## Mulai membaca
 
@@ -17,6 +17,7 @@ Status saat ini: **discovery dan fondasi arsitektur**. Repository belum berisi i
 7. [Strategi Pengujian](docs/TEST_STRATEGY.md)
 8. [Roadmap Implementasi](docs/ROADMAP.md)
 9. [Architecture Decision Records](docs/adr/README.md)
+10. [Google Integration Setup](docs/GOOGLE_INTEGRATION_SETUP.md)
 
 Daftar lengkap, status, dan aturan perubahan dokumen tersedia di [docs/README.md](docs/README.md).
 
@@ -48,4 +49,3 @@ Versi library dan detail deployment baru dikunci saat scaffolding melalui ADR. J
 ## Sumber awal
 
 `EarlyBrief.md` dipertahankan sebagai brief asli. Requirement normatif hasil elaborasi berada di `docs/PRD.md` dan `docs/SRS.md`.
-

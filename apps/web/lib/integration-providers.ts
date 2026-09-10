@@ -24,6 +24,9 @@ export interface OAuthTokenSet {
   scopes: string[];
   providerAccountId: string;
   accountEmail?: string;
+  accountName?: string;
+  accountPicture?: string;
+  emailVerified: boolean;
 }
 
 export interface OAuthProvider {
@@ -32,11 +35,15 @@ export interface OAuthProvider {
     state: string;
     codeChallenge: string;
     scopes: string[];
+    nonce: string;
+    accessType?: 'online' | 'offline';
+    prompt?: 'none' | 'consent' | 'select_account';
   }): URL;
   exchangeCode(input: {
     code: string;
     codeVerifier: string;
     redirectUri: string;
+    expectedNonce: string;
   }): Promise<OAuthTokenSet>;
   refresh(refreshToken: string): Promise<OAuthTokenSet>;
   revoke(token: string): Promise<void>;

@@ -176,6 +176,7 @@ export function WorkspaceApp({
   initialCourses,
   initialCalendarEvents,
   initialPreferences,
+  initialGoogleConnection,
 }: {
   user?: { name: string; email: string };
   initialTasks?: Task[];
@@ -189,6 +190,12 @@ export function WorkspaceApp({
     aiMove: boolean;
     aiCreate: boolean;
     readNotificationIds: number[];
+  };
+  initialGoogleConnection?: {
+    connected: boolean;
+    accountEmail?: string;
+    grantedScopes: string[];
+    status?: 'active' | 'reauth_required' | 'revoked' | 'error';
   };
 }) {
   const [view, setView] = useState<ViewKey>('dashboard');
@@ -223,6 +230,13 @@ export function WorkspaceApp({
     document.documentElement.classList.toggle('dark', dark);
     localStorage.setItem('mio-theme', dark ? 'dark' : 'light');
   }, [dark]);
+
+  useEffect(() => {
+    const requestedView = new URLSearchParams(window.location.search).get('view');
+    if (requestedView !== 'settings') return;
+    const timer = window.setTimeout(() => setView('settings'), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const addActivity = (activity: Activity) =>
     setActivities((current) => [activity, ...current]);
@@ -939,6 +953,7 @@ export function WorkspaceApp({
               setDark={setDark}
               user={user}
               initialPreferences={initialPreferences}
+              googleConnection={initialGoogleConnection}
             />
           )}
         </div>

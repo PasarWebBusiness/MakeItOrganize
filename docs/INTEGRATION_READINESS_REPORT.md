@@ -2,11 +2,11 @@
 
 **Aplikasi:** MakeItOrganize
 
-**Tanggal audit:** 9 September 2026
+**Tanggal audit:** 10 September 2026
 
 **Baseline:** `EarlyBrief.md`, PRD v1.0, SRS v1.0, Security baseline, ADR-0001–0005
 
-**Keputusan:** Siap memulai implementasi adapter Google dan Gemini secara bertahap; belum siap public launch.
+**Keputusan:** Google OAuth tahap 1 telah diimplementasikan dan siap diuji dengan credential environment; Calendar, Tasks, Drive, dan Gemini siap dilanjutkan bertahap; belum siap public launch.
 
 ## 1. Ringkasan eksekutif
 
@@ -34,7 +34,9 @@ Runtime initial release dikunci melalui ADR-0004: Vinext/OpenAI Sites pada Cloud
 ### OAuth dan connector
 
 - External identity dipisahkan dari akun/password lokal.
-- OAuth transaction menyimpan hash `state`, encrypted PKCE verifier, expiry sepuluh menit, one-time consumption, workspace, dan safe relative return path.
+- OAuth login dan linking memakai authorization code, PKCE S256, hash `state`, encrypted verifier/nonce, expiry sepuluh menit, one-time consumption, serta safe relative return path.
+- ID token diverifikasi server-side terhadap JWKS Google, signature RS256, issuer, audience, expiry, subject, dan nonce.
+- Login Google baru membuat user/workspace atomik; akun password yang emailnya sama tidak di-auto-merge dan harus di-link setelah login.
 - Connection menyimpan provider account, granted scopes, encrypted token fields, token expiry, status, sync cursor, last sync, revocation, dan safe error code.
 - Secret dienkripsi AES-256-GCM dengan key dari deployment secret manager.
 - Kontrak provider tersedia untuk OAuth, Calendar, Google Tasks, Drive, dan AI sehingga domain tidak tergantung SDK provider.
@@ -62,7 +64,7 @@ Runtime initial release dikunci melalui ADR-0004: Vinext/OpenAI Sites pada Cloud
 |---|---|---|
 | Modular monolith dan provider adapter | Sesuai | Domain action tidak memanggil Google/Gemini langsung; provider contract terpisah. |
 | Deny by default dan tenant isolation | Sesuai untuk resource aktif | Membership/role/capability diverifikasi; negative integration test belum tersedia. |
-| OAuth state dan PKCE | Sesuai sebagai fondasi | State di-hash, verifier encrypted, expiry dan one-time consumption tersedia; callback/provider adapter belum dibuat. |
+| OAuth state, PKCE, dan OIDC | Sesuai pada level kode | Login/link callback, browser-bound state, encrypted verifier/nonce, JWKS ID-token verification, expiry, dan one-time consumption tersedia; E2E menunggu credential. |
 | Token confidentiality | Sesuai sebagai fondasi | AES-GCM dan ciphertext-only columns tersedia; key rotation belum dibuat. |
 | Durable state | Sesuai untuk modul aktif | D1 menjadi source of truth untuk task/course/calendar dan metadata integrasi. Notes/files/canvas masih perlu backend lengkap. |
 | Object storage private | Sebagian | R2 binding tersedia; upload intent, signed URL, validation, quarantine, dan lifecycle belum dibuat. |

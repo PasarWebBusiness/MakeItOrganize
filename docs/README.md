@@ -16,6 +16,7 @@ Dokumentasi ini adalah baseline fundamental MakeItOrganize. Jika brief, implemen
 | [ROADMAP.md](ROADMAP.md) | Urutan implementasi tanpa menghapus scope rilis lengkap | Proposed |
 | [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Traceability requirement, bukti audit, dan gap implementasi aktual | Living document |
 | [INTEGRATION_READINESS_REPORT.md](INTEGRATION_READINESS_REPORT.md) | Audit kesiapan Google dan Gemini, bukti gate, serta batas production | Active |
+| [GOOGLE_INTEGRATION_SETUP.md](GOOGLE_INTEGRATION_SETUP.md) | Konfigurasi, pengujian, dan urutan implementasi Google OAuth hingga provider berikutnya | Active |
 | [GLOSSARY.md](GLOSSARY.md) | Istilah domain resmi | Baseline |
 | [adr/](adr/README.md) | Log keputusan arsitektur | Active |
 

@@ -77,11 +77,23 @@ export const oauthTransactions = sqliteTable('oauth_states', {
   provider: text('provider', { enum: ['google'] }).notNull(),
   stateHash: text('state_hash').notNull(),
   codeVerifierCiphertext: text('code_verifier_ciphertext').notNull(),
+  nonceCiphertext: text('nonce_ciphertext').notNull(),
   returnTo: text('return_to').notNull().default('/'),
   expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
   consumedAt: integer('consumed_at', { mode: 'timestamp_ms' }),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
 }, (table) => [uniqueIndex('oauth_state_hash_unique').on(table.stateHash), index('oauth_state_expiry_idx').on(table.expiresAt)]);
+
+export const oauthLoginTransactions = sqliteTable('oauth_login_states', {
+  id: text('id').primaryKey(),
+  stateHash: text('state_hash').notNull(),
+  codeVerifierCiphertext: text('code_verifier_ciphertext').notNull(),
+  nonceCiphertext: text('nonce_ciphertext').notNull(),
+  returnTo: text('return_to').notNull().default('/'),
+  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+  consumedAt: integer('consumed_at', { mode: 'timestamp_ms' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+}, (table) => [uniqueIndex('oauth_login_state_hash_unique').on(table.stateHash), index('oauth_login_state_expiry_idx').on(table.expiresAt)]);
 
 export const integrationJobs = sqliteTable('integration_jobs', {
   id: text('id').primaryKey(),

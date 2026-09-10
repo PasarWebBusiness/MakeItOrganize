@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Archive,
@@ -2082,6 +2082,7 @@ export function SettingsView({
   setDark,
   user,
   initialPreferences,
+  googleConnection,
 }: {
   dark: boolean;
   setDark: (value: boolean) => void;
@@ -2094,8 +2095,28 @@ export function SettingsView({
     aiMove: boolean;
     aiCreate: boolean;
   };
+  googleConnection?: {
+    connected: boolean;
+    accountEmail?: string;
+    grantedScopes: string[];
+    status?: 'active' | 'reauth_required' | 'revoked' | 'error';
+  };
 }) {
   const [activeSection, setActiveSection] = useState('akun');
+  const [googleNotice, setGoogleNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get('google');
+    const messages: Record<string, { tone: 'success' | 'error'; text: string }> = {
+      connected: { tone: 'success', text: 'Akun Google berhasil dihubungkan.' },
+      cancelled: { tone: 'error', text: 'Proses menghubungkan Google dibatalkan.' },
+      invalid_state: { tone: 'error', text: 'Sesi OAuth tidak valid atau sudah kedaluwarsa.' },
+      unavailable: { tone: 'error', text: 'Google OAuth belum dikonfigurasi pada environment ini.' },
+      failed: { tone: 'error', text: 'Akun Google belum dapat dihubungkan. Silakan coba lagi.' },
+    };
+    if (!status || !messages[status]) return;
+    const timer = window.setTimeout(() => setGoogleNotice(messages[status]), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   const persistedSetter = (key: string, setter: (value: boolean) => void) => (value: boolean) => {
     window.localStorage.setItem(`mio-setting-${key}`, String(value));
     setter(value);
@@ -2114,12 +2135,6 @@ export function SettingsView({
       );
     }
   };
-  const savedSetting = (key: string, fallback: boolean) => {
-    if (typeof window === 'undefined') return fallback;
-    const value = window.localStorage.getItem(`mio-setting-${key}`);
-    return value === null ? fallback : value === 'true';
-  };
-  const [calendar, setCalendar] = useState(() => savedSetting('calendar', false));
   const [browser, setBrowser] = useState(initialPreferences?.browserNotifications ?? false);
   const [email, setEmailNotif] = useState(initialPreferences?.emailNotifications ?? false);
   const [weekly, setWeekly] = useState(initialPreferences?.weeklySummary ?? false);
@@ -2191,14 +2206,37 @@ export function SettingsView({
             <section className="panel settings-card">
               <span className="section-kicker">INTEGRASI</span>
               <h2>Layanan terhubung</h2>
-              <SettingRow
-                icon={Cloud}
-                title="Google Calendar"
-                text="Memerlukan Google OAuth dan kredensial Calendar API."
-                checked={calendar}
-                onChange={setCalendar}
-                disabled
-              />
+              {googleNotice && (
+                <output className={`integration-notice ${googleNotice.tone}`}>
+                  {googleNotice.text}
+                </output>
+              )}
+              <div className="google-connection-row">
+                <span className="google-connection-icon"><Cloud size={19} /></span>
+                <div>
+                  <strong>Akun Google</strong>
+                  <small>
+                    {googleConnection?.connected
+                      ? `${googleConnection.accountEmail ?? 'Akun terhubung'} · OAuth aktif`
+                      : googleConnection?.status === 'reauth_required'
+                        ? 'Sesi Google perlu dihubungkan ulang.'
+                        : 'Hubungkan identitas Google sebelum mengaktifkan Calendar, Tasks, atau Drive.'}
+                  </small>
+                </div>
+                <button
+                  type="button"
+                  className={`integration-action ${googleConnection?.connected ? 'connected' : ''}`}
+                  onClick={() => window.location.assign('/api/integrations/google/connect?returnTo=/?view=settings')}
+                >
+                  {googleConnection?.connected ? 'Hubungkan ulang' : 'Hubungkan Google'}
+                </button>
+              </div>
+              <div className="integration-roadmap" aria-label="Status modul integrasi Google">
+                <span className={googleConnection?.connected ? 'ready' : ''}>OAuth</span>
+                <span>Calendar berikutnya</span>
+                <span>Tasks berikutnya</span>
+                <span>Drive berikutnya</span>
+              </div>
             </section>
             <section className="panel settings-card">
               <span className="section-kicker">KEAMANAN</span>
