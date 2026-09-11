@@ -24,7 +24,7 @@
 5. Untuk production, daftarkan dua URI yang sama pada origin HTTPS production. Jangan memakai wildcard.
 6. Salin `apps/web/.dev.vars.example` menjadi `apps/web/.dev.vars`, lalu isi nilai rahasianya. File `.dev.vars` sudah diabaikan Git.
 7. Buat `OAUTH_TOKEN_ENCRYPTION_KEY` berupa 32 byte acak yang dienkode base64. Key ini harus stabil; menggantinya tanpa proses rotasi membuat token lama tidak dapat didekripsi.
-8. Jalankan migration D1 sampai `0004_volatile_warlock.sql` sebelum menguji OAuth.
+8. Jalankan migration D1 sampai `0005_backfill_personal_workspace_memberships.sql` sebelum menguji OAuth. Migration `0005` memperbaiki akun lama yang telah memiliki personal workspace tetapi belum memiliki membership owner.
 
 Contoh pembuatan encryption key di PowerShell:
 

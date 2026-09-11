@@ -36,6 +36,13 @@
       "when": 1788971221416,
       "tag": "0004_volatile_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789058011638,
+      "tag": "0005_backfill_personal_workspace_memberships",
+      "breakpoints": true
     }
   ]
 }

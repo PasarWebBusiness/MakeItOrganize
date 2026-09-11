@@ -43,7 +43,7 @@ export async function requireWorkspaceAccess(
 export async function requireDefaultWorkspace(capability: WorkspaceCapability = 'read') {
   const user = await requireAuthenticatedUser();
   const db = getDb();
-  const [workspace] = await db
+  let [workspace] = await db
     .select({ id: workspaces.id })
     .from(workspaces)
     .innerJoin(
@@ -53,6 +53,36 @@ export async function requireDefaultWorkspace(capability: WorkspaceCapability = 
     .where(and(eq(memberships.status, 'active'), eq(workspaces.type, 'personal')))
     .limit(1);
 
-  if (!workspace) throw new Error('No accessible workspace found');
+  if (!workspace) {
+    // Accounts created before workspace membership became mandatory can still
+    // have a valid session. Repair that legacy state idempotently instead of
+    // crashing the whole application. A deterministic id closes the race when
+    // multiple page requests arrive at the same time.
+    const [ownedPersonalWorkspace] = await db
+      .select({ id: workspaces.id })
+      .from(workspaces)
+      .where(and(eq(workspaces.ownerId, user.id), eq(workspaces.type, 'personal')))
+      .limit(1);
+    const workspaceId = ownedPersonalWorkspace?.id ?? `personal-${user.id}`;
+
+    if (!ownedPersonalWorkspace) {
+      await db
+        .insert(workspaces)
+        .values({
+          id: workspaceId,
+          name: `Workspace ${user.name}`,
+          type: 'personal',
+          ownerId: user.id,
+        })
+        .onConflictDoNothing();
+    }
+
+    await db
+      .insert(memberships)
+      .values({ workspaceId, userId: user.id, role: 'owner', status: 'active' })
+      .onConflictDoNothing();
+    workspace = { id: workspaceId };
+  }
+
   return requireWorkspaceAccess(workspace.id, capability);
 }

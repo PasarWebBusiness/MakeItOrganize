@@ -42,6 +42,7 @@ Label pada dokumen ini:
 - Course D1 mencakup create, edit, duplicate guard, dan soft-archive; task dan event mempertahankan relasinya.
 - Calendar D1 mencakup create, edit, delete, validasi tanggal/waktu, agenda, month view, dan relasi course.
 - Registrasi kini membuat membership owner untuk personal workspace dalam transaksi yang sama.
+- Akun legacy tanpa membership tidak lagi membuat halaman utama HTTP 500: migration `0005` membackfill membership owner dan authorization boundary memulihkan state yang hilang secara idempotent tanpa mengaktifkan kembali membership suspended.
 - Google OAuth login/registrasi serta koneksi workspace telah diimplementasikan; Calendar, Tasks, Drive, dan AI action tetap ditandai belum aktif sampai scope serta adapter masing-masing tersedia.
 - Authorization server terpusat memeriksa membership aktif dan role capability sebelum operasi workspace.
 - Session token disimpan sebagai hash SHA-256; token mentah hanya berada pada cookie HttpOnly.

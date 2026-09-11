@@ -30,6 +30,7 @@ Runtime initial release dikunci melalui ADR-0004: Vinext/OpenAI Sites pada Cloud
 - Policy memeriksa authenticated user, membership aktif, workspace, role, dan capability.
 - Capability awal meliputi read, create, update, delete, manage integrations, dan manage members.
 - Query mutation tetap menyertakan `workspace_id` untuk mencegah IDOR lintas workspace.
+- Akun legacy yang belum mempunyai membership personal dipulihkan secara idempotent; migration backfill memperbaiki data yang sudah ada, sedangkan authorization boundary melakukan self-healing aman untuk race request baru tanpa mengaktifkan kembali membership yang suspended.
 
 ### OAuth dan connector
 
@@ -56,7 +57,7 @@ Runtime initial release dikunci melalui ADR-0004: Vinext/OpenAI Sites pada Cloud
 - ADR-0004 menyelesaikan konflik runtime Google Cloud versus Sites/Cloudflare.
 - ADR-0005 mendokumentasikan fallback KDF dan syarat review sebelum public beta.
 - `.env.example` hanya berisi nama variable, tanpa secret.
-- Migration D1 `0002` dan `0003` dihasilkan oleh Drizzle beserta snapshot dan journal.
+- Migration D1 `0002`–`0005` tersedia beserta snapshot dan journal; `0005` melakukan backfill personal workspace/membership legacy tanpa mengubah membership suspended.
 
 ## 3. Kepatuhan terhadap fundamental
 
@@ -86,8 +87,9 @@ Gate yang wajib lulus pada audit ini:
 | Production Worker startup | Lulus; D1 dan R2 masing-masing satu binding |
 | Production HTTP smoke test | Lulus; `/login` mengembalikan HTTP 200 |
 | npm production dependency audit | Lulus, 0 vulnerability |
-| Drizzle migration generation | Lulus, 21 tabel |
-| Migration SQL review | Lulus; schema-only, statement terpisah, foreign key/index eksplisit |
+| Drizzle migration generation | Lulus, 21 tabel dan migration sampai `0005` |
+| Migration SQL review | Lulus; schema migration eksplisit dan data backfill `0005` idempotent |
+| Local D1 migration/backfill | Lulus; akun legacy terverifikasi memiliki membership `owner/active` |
 | `git diff --check` | Lulus |
 
 Catatan operasional: perubahan session hashing membuat session lama tidak lagi dikenali. Pengguna yang sudah login akan diminta login ulang satu kali setelah deployment.
