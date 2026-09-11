@@ -8,8 +8,10 @@ import {
   workspaces,
 } from '@/db/schema';
 import { requireDefaultWorkspace } from '@/lib/authorization';
-import { encryptIntegrationSecret } from '@/lib/integration-crypto';
-import type { OAuthTokenSet } from '@/lib/integration-providers';
+import { decryptIntegrationSecret, encryptIntegrationSecret } from '@/lib/integration-crypto';
+import { getGoogleIntegrationConfig } from '@/lib/integration-env';
+import { GoogleOAuthProvider, GOOGLE_CALENDAR_READ_SCOPE } from '@/lib/google-oauth';
+import { ProviderError, type OAuthTokenSet } from '@/lib/integration-providers';
 import { and, eq } from 'drizzle-orm';
 
 function normalizedEmail(tokenSet: OAuthTokenSet): string {
@@ -99,7 +101,6 @@ export async function saveGoogleConnection(
     ? await encryptIntegrationSecret(tokenSet.refreshToken, encryptionKey)
     : existing?.refreshTokenCiphertext;
   if (!refreshTokenCiphertext) throw new Error('Google did not issue an offline refresh token');
-  if (!refreshTokenCiphertext) throw new Error('Google did not issue an offline refresh token');
   const now = new Date();
   const connectionId = existing?.id ?? crypto.randomUUID();
 
@@ -170,6 +171,8 @@ export type GoogleConnectionSummary = {
   accountEmail?: string;
   grantedScopes: string[];
   status?: 'active' | 'reauth_required' | 'revoked' | 'error';
+  calendarEnabled: boolean;
+  lastSyncedAt?: string;
 };
 
 export async function getGoogleConnectionSummary(): Promise<GoogleConnectionSummary> {
@@ -179,6 +182,7 @@ export async function getGoogleConnectionSummary(): Promise<GoogleConnectionSumm
       accountEmail: integrationConnections.accountEmail,
       grantedScopes: integrationConnections.grantedScopes,
       status: integrationConnections.status,
+      lastSyncedAt: integrationConnections.lastSyncedAt,
     })
     .from(integrationConnections)
     .where(
@@ -189,7 +193,9 @@ export async function getGoogleConnectionSummary(): Promise<GoogleConnectionSumm
       ),
     )
     .limit(1);
-  if (!connection || connection.status === 'revoked') return { connected: false, grantedScopes: [] };
+  if (!connection || connection.status === 'revoked') {
+    return { connected: false, grantedScopes: [], calendarEnabled: false };
+  }
   let grantedScopes: string[] = [];
   try {
     const parsed: unknown = JSON.parse(connection.grantedScopes);
@@ -202,5 +208,71 @@ export async function getGoogleConnectionSummary(): Promise<GoogleConnectionSumm
     accountEmail: connection.accountEmail ?? undefined,
     grantedScopes,
     status: connection.status,
+    calendarEnabled: grantedScopes.includes(GOOGLE_CALENDAR_READ_SCOPE),
+    lastSyncedAt: connection.lastSyncedAt?.toISOString(),
   };
+}
+
+export async function getGoogleCalendarAccessToken(userId: string, workspaceId: string) {
+  const db = getDb();
+  const connections = await db
+    .select()
+    .from(integrationConnections)
+    .where(and(
+      eq(integrationConnections.userId, userId),
+      eq(integrationConnections.workspaceId, workspaceId),
+      eq(integrationConnections.provider, 'google'),
+      eq(integrationConnections.status, 'active'),
+    ));
+  const connection = connections.find((candidate) => {
+    try {
+      const scopes: unknown = JSON.parse(candidate.grantedScopes);
+      return Array.isArray(scopes) && scopes.includes(GOOGLE_CALENDAR_READ_SCOPE);
+    } catch {
+      return false;
+    }
+  });
+  if (!connection) {
+    throw new ProviderError('scope_missing', 'Google Calendar belum diizinkan', false);
+  }
+
+  const config = getGoogleIntegrationConfig();
+  if (connection.tokenExpiresAt && connection.tokenExpiresAt.getTime() > Date.now() + 60_000) {
+    return {
+      connection,
+      accessToken: await decryptIntegrationSecret(connection.accessTokenCiphertext, config.encryptionKey),
+    };
+  }
+  if (!connection.refreshTokenCiphertext) {
+    await db.update(integrationConnections).set({
+      status: 'reauth_required',
+      lastErrorCode: 'missing_refresh_token',
+      updatedAt: new Date(),
+    }).where(eq(integrationConnections.id, connection.id));
+    throw new ProviderError('unauthorized', 'Koneksi Google perlu dihubungkan ulang', false);
+  }
+
+  try {
+    const refreshToken = await decryptIntegrationSecret(connection.refreshTokenCiphertext, config.encryptionKey);
+    const refreshed = await new GoogleOAuthProvider(config.clientId, config.clientSecret).refresh(refreshToken);
+    const accessTokenCiphertext = await encryptIntegrationSecret(refreshed.accessToken, config.encryptionKey);
+    await db.update(integrationConnections).set({
+      accessTokenCiphertext,
+      tokenExpiresAt: refreshed.expiresAt,
+      lastErrorCode: null,
+      updatedAt: new Date(),
+    }).where(eq(integrationConnections.id, connection.id));
+    return {
+      connection: { ...connection, accessTokenCiphertext, tokenExpiresAt: refreshed.expiresAt ?? null },
+      accessToken: refreshed.accessToken,
+    };
+  } catch (error) {
+    const unauthorized = error instanceof ProviderError && error.code === 'unauthorized';
+    await db.update(integrationConnections).set({
+      status: unauthorized ? 'reauth_required' : connection.status,
+      lastErrorCode: error instanceof ProviderError ? error.code : 'token_refresh_failed',
+      updatedAt: new Date(),
+    }).where(eq(integrationConnections.id, connection.id));
+    throw error;
+  }
 }

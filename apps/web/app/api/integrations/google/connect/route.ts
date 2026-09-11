@@ -1,5 +1,9 @@
 import { getGoogleIntegrationConfig } from '@/lib/integration-env';
-import { GoogleOAuthProvider, GOOGLE_IDENTITY_SCOPES } from '@/lib/google-oauth';
+import {
+  GoogleOAuthProvider,
+  GOOGLE_CALENDAR_READ_SCOPE,
+  GOOGLE_IDENTITY_SCOPES,
+} from '@/lib/google-oauth';
 import { createGoogleOAuthTransaction } from '@/lib/oauth-state';
 
 export async function GET(request: Request) {
@@ -11,13 +15,16 @@ export async function GET(request: Request) {
       config.encryptionKey,
     );
     const provider = new GoogleOAuthProvider(config.clientId, config.clientSecret);
+    const scopes = requestUrl.searchParams.get('feature') === 'calendar'
+      ? [...GOOGLE_IDENTITY_SCOPES, GOOGLE_CALENDAR_READ_SCOPE]
+      : [...GOOGLE_IDENTITY_SCOPES];
     return Response.redirect(
       provider.authorizationUrl({
         redirectUri: config.integrationRedirectUri,
         state: transaction.state,
         nonce: transaction.nonce,
         codeChallenge: transaction.codeChallenge,
-        scopes: [...GOOGLE_IDENTITY_SCOPES],
+        scopes,
         accessType: 'offline',
         prompt: 'consent',
       }),

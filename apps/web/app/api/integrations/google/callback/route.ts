@@ -1,5 +1,5 @@
 import { getGoogleIntegrationConfig } from '@/lib/integration-env';
-import { GoogleOAuthProvider } from '@/lib/google-oauth';
+import { GoogleOAuthProvider, GOOGLE_CALENDAR_READ_SCOPE } from '@/lib/google-oauth';
 import { saveGoogleConnection } from '@/lib/google-identity';
 import { consumeGoogleOAuthTransaction } from '@/lib/oauth-state';
 
@@ -29,7 +29,10 @@ export async function GET(request: Request) {
     const { user } = await requireWorkspaceAccess(transaction.workspaceId, 'manage_integrations');
     await saveGoogleConnection(user.id, transaction.workspaceId, tokenSet, config.encryptionKey);
     const returnUrl = new URL(transaction.returnTo, requestUrl.origin);
-    returnUrl.searchParams.set('google', 'connected');
+    returnUrl.searchParams.set(
+      'google',
+      tokenSet.scopes.includes(GOOGLE_CALENDAR_READ_SCOPE) ? 'calendar_connected' : 'connected',
+    );
     return Response.redirect(returnUrl, 302);
   } catch {
     return settingsRedirect(requestUrl.origin, 'failed');

@@ -6,7 +6,7 @@
 
 **Baseline:** `EarlyBrief.md`, PRD v1.0, SRS v1.0, Security baseline, ADR-0001–0005
 
-**Keputusan:** Google OAuth tahap 1 telah diimplementasikan dan siap diuji dengan credential environment; Calendar, Tasks, Drive, dan Gemini siap dilanjutkan bertahap; belum siap public launch.
+**Keputusan:** Google OAuth tahap 1 dan Calendar tahap 2A read-only telah diimplementasikan serta siap diuji dengan credential environment; Tasks, Drive, dan Gemini siap dilanjutkan bertahap; belum siap public launch.
 
 ## 1. Ringkasan eksekutif
 
@@ -42,6 +42,7 @@ Runtime initial release dikunci melalui ADR-0004: Vinext/OpenAI Sites pada Cloud
 - Secret dienkripsi AES-256-GCM dengan key dari deployment secret manager.
 - Kontrak provider tersedia untuk OAuth, Calendar, Google Tasks, Drive, dan AI sehingga domain tidak tergantung SDK provider.
 - Failure provider dinormalisasi menjadi safe code dan retryable classification.
+- Calendar meminta `calendar.events.readonly` secara incremental, melakukan refresh access token di server, menarik perubahan kalender primer secara manual dengan pagination bound, menyimpan sync token, dan melakukan full resync terbatas saat Google mengembalikan cursor invalid.
 
 ### Synchronization dan persistence
 
@@ -69,7 +70,7 @@ Runtime initial release dikunci melalui ADR-0004: Vinext/OpenAI Sites pada Cloud
 | Token confidentiality | Sesuai sebagai fondasi | AES-GCM dan ciphertext-only columns tersedia; key rotation belum dibuat. |
 | Durable state | Sesuai untuk modul aktif | D1 menjadi source of truth untuk task/course/calendar dan metadata integrasi. Notes/files/canvas masih perlu backend lengkap. |
 | Object storage private | Sebagian | R2 binding tersedia; upload intent, signed URL, validation, quarantine, dan lifecycle belum dibuat. |
-| Calendar sync safety | Sebagian | Mapping, cursor, ETag, job, dedupe tersedia; webhook verification, 410 recovery, echo prevention, dan reconciliation runner belum dibuat. |
+| Calendar sync safety | Sebagian | Read-only pull, mapping, cursor, ETag, pagination bound, 410 recovery, workspace-scoped dedupe, dan audit tersedia; outbound conflict policy, webhook verification, echo prevention, pilihan kalender, serta reconciliation runner belum dibuat. |
 | AI least privilege | Sebagian | Permission/grant schema dan provider boundary tersedia; retrieval ACL, approval intent hash, tool executor, dan audit emission belum dibuat. |
 | Auditability | Sebagian | Audit dan outbox schema tersedia; setiap mutation belum otomatis menghasilkan audit event. |
 | Production authentication | Sebagian | Rate limit dan hashed session sudah ada; email verification, reset token, session rotation/revoke-all, dan re-auth belum ada. |

@@ -1,6 +1,6 @@
 # Google Integration Setup
 
-**Status:** Tahap 1 (OAuth identity dan connection) telah diimplementasikan. Calendar, Tasks, Drive, dan Gemini tetap dinonaktifkan sampai scope dan adapter masing-masing selesai.
+**Status:** Tahap 1 (OAuth identity dan connection) serta tahap 2A (Google Calendar read-only manual/incremental pull) telah diimplementasikan. Calendar write/webhook, Tasks, Drive, dan Gemini tetap dinonaktifkan sampai scope dan adapter masing-masing selesai.
 
 ## 1. Yang sudah tersedia
 
@@ -10,6 +10,8 @@
 - Koneksi Google untuk workspace meminta scope identitas minimum dan menyimpan access/refresh token dalam ciphertext AES-256-GCM.
 - External identity menggunakan Google `sub`, bukan email, sebagai identifier provider yang stabil.
 - UI login/register dan Settings menampilkan status koneksi sebenarnya dari D1.
+- Izin Calendar diminta secara incremental hanya setelah tindakan eksplisit pengguna, menggunakan scope `calendar.events.readonly`.
+- Sinkronisasi manual membaca kalender primer, menyimpan cursor incremental, menangani cursor kedaluwarsa dengan full resync terbatas, memperbarui token secara server-side, dan tidak mengekspos token ke browser.
 
 ## 2. Konfigurasi Google Cloud
 
@@ -24,7 +26,7 @@
 5. Untuk production, daftarkan dua URI yang sama pada origin HTTPS production. Jangan memakai wildcard.
 6. Salin `apps/web/.dev.vars.example` menjadi `apps/web/.dev.vars`, lalu isi nilai rahasianya. File `.dev.vars` sudah diabaikan Git.
 7. Buat `OAUTH_TOKEN_ENCRYPTION_KEY` berupa 32 byte acak yang dienkode base64. Key ini harus stabil; menggantinya tanpa proses rotasi membuat token lama tidak dapat didekripsi.
-8. Jalankan migration D1 sampai `0005_backfill_personal_workspace_memberships.sql` sebelum menguji OAuth. Migration `0005` memperbaiki akun lama yang telah memiliki personal workspace tetapi belum memiliki membership owner.
+8. Jalankan migration D1 sampai `0006_scope_calendar_external_ids.sql` sebelum menguji Calendar. Migration `0005` memperbaiki akun lama yang belum memiliki membership owner; `0006` memastikan identitas event eksternal unik di dalam workspace, bukan lintas tenant.
 
 Contoh pembuatan encryption key di PowerShell:
 
@@ -53,17 +55,21 @@ Secret production harus disimpan melalui secret manager/deployment control plane
 5. Login dengan password, buka Settings → Akun, lalu pilih **Hubungkan Google**.
 6. Pastikan D1 hanya menyimpan ciphertext token, scope identitas, account subject/email, dan status `active`.
 7. Uji callback dengan state salah, state kedaluwarsa, nonce salah, redirect URI salah, dan pemakaian state kedua kali; semuanya harus gagal tertutup.
+8. Tekan **Aktifkan Google Calendar** dan pastikan consent baru hanya menambahkan scope event read-only.
+9. Jalankan **Sinkronkan**, muat ulang halaman Calendar, lalu pastikan event kalender primer muncul tanpa menduplikasi event pada sinkronisasi berikutnya.
+10. Cabut akses Google atau gunakan cursor invalid dan pastikan koneksi berubah menjadi perlu re-auth atau melakukan full resync aman tanpa HTTP 500.
 
 ## 5. Tahapan berikutnya
 
-1. **Calendar:** incremental consent untuk scope event minimum, token refresh manager, initial/incremental sync, conflict policy, webhook validation, reconciliation, dan disconnect dengan step-up authentication.
+1. **Calendar 2B:** tambah outbound write melalui command/idempotency layer, conflict policy, webhook validation, periodic reconciliation, pilihan kalender, dan disconnect dengan step-up authentication.
 2. **Tasks:** scope incremental dan adapter Google Tasks dengan mapping/conflict policy terpisah dari task lokal.
 3. **Drive:** Drive sebagai import/link source; R2 tetap storage internal. Terapkan file picker/metadata scope minimum, MIME validation, checksum, dan ACL.
 4. **Gemini:** gateway server-side, data minimization, retrieval terotorisasi, citations, approval command, quota, audit, dan safety evaluation.
 
 ## 6. Batas keamanan saat ini
 
-- Jangan mengaktifkan Calendar/Tasks/Drive hanya berdasarkan koneksi identity-only; periksa scope aktual setiap panggilan.
+- Calendar UI dan server action memeriksa scope aktual; koneksi identity-only tidak dianggap sebagai izin Calendar.
+- Sinkronisasi saat ini hanya pull read-only kalender primer dengan jendela awal satu tahun ke belakang. Belum ada push/two-way sync, webhook, pilihan kalender, atau background scheduler.
 - Unlink/revoke belum diekspos karena requirement keamanan mewajibkan step-up authentication untuk perubahan OAuth.
 - End-to-end test dengan Google belum dapat dijalankan tanpa client credential milik environment.
 - OAuth consent verification, privacy disclosure, domain verification, quota, dan production secret provisioning tetap merupakan gate deployment.

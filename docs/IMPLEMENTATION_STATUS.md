@@ -21,7 +21,7 @@ Label pada dokumen ini:
 | Workspace & authorization | — | WS-001–WS-003 | WS-004–WS-007 | Registrasi membuat personal workspace dan membership owner. Isolasi task menggunakan workspace pengguna, tetapi kebijakan lintas seluruh resource, kolaborasi, invite, serta transfer ownership belum lengkap. |
 | Courses | CRS-003 | CRS-001, CRS-002 | — | Course memiliki create/edit/soft-archive persisten dan dapat dihubungkan ke task/event. CRUD semester dan hubungan ke seluruh jenis resource masih belum lengkap. |
 | Tasks | — | TASK-001–TASK-004 | — | Create, rename, toggle, delete, filter, dan pengelompokan tersedia; relasi/metadata, audit, validasi, serta seluruh acceptance criteria belum lengkap. |
-| Calendar | — | CAL-001, CAL-002, CAL-003 | CAL-004–CAL-008 | Event lokal memiliki create/edit/delete persisten, agenda serta tampilan bulan/minggu/tahun, timezone Asia/Jakarta, dan relasi course. Recurrence, reminder, serta seluruh sinkronisasi Google belum ada. |
+| Calendar | — | CAL-001–CAL-004, CAL-006 | CAL-005, CAL-007, CAL-008 | Event lokal persisten dan tampilan bulan/minggu/tahun tersedia. Google Calendar memiliki incremental consent read-only, refresh token server-side, manual initial/incremental pull, cursor recovery, dan workspace-scoped upsert. Push/two-way conflict policy, webhook, pilihan kalender, reminder, serta background reconciliation belum ada. |
 | Files | — | FILE-001, FILE-004, FILE-007 | FILE-002, FILE-003, FILE-005, FILE-006, FILE-008–FILE-010 | File manager interaktif masih memakai state lokal. Upload object storage, signed URL, hash, scan, version restore, delete lifecycle, dan retention belum ada. |
 | Notes | — | NOTE-001, NOTE-003 | NOTE-002 | Editor rich-text tersedia di klien; sanitization, autosave persisten, versioning, dan permission enforcement belum lengkap. |
 | Canvas | — | CAN-001, CAN-002 | CAN-003 | Pen, highlighter, eraser, undo/redo tersedia. Zoom/pan, autosave, revision, dan export PDF belum lengkap. |
@@ -43,7 +43,8 @@ Label pada dokumen ini:
 - Calendar D1 mencakup create, edit, delete, validasi tanggal/waktu, agenda, month view, dan relasi course.
 - Registrasi kini membuat membership owner untuk personal workspace dalam transaksi yang sama.
 - Akun legacy tanpa membership tidak lagi membuat halaman utama HTTP 500: migration `0005` membackfill membership owner dan authorization boundary memulihkan state yang hilang secara idempotent tanpa mengaktifkan kembali membership suspended.
-- Google OAuth login/registrasi serta koneksi workspace telah diimplementasikan; Calendar, Tasks, Drive, dan AI action tetap ditandai belum aktif sampai scope serta adapter masing-masing tersedia.
+- Google OAuth login/registrasi serta koneksi workspace telah diimplementasikan; Tasks, Drive, dan AI action tetap ditandai belum aktif sampai scope serta adapter masing-masing tersedia.
+- Google Calendar tahap 2A tersedia sebagai manual read-only pull dari kalender primer dengan incremental scope, refresh token, pagination bound, sync cursor, 410 recovery, audit event, dan tenant-scoped external ID. Fitur ini belum merupakan two-way sync.
 - Authorization server terpusat memeriksa membership aktif dan role capability sebelum operasi workspace.
 - Session token disimpan sebagai hash SHA-256; token mentah hanya berada pada cookie HttpOnly.
 - Fondasi integrasi menyediakan external identity, OAuth transaction dengan state hash dan PKCE, encrypted token fields, connection health, sync cursor, idempotent integration job, dan transactional outbox.

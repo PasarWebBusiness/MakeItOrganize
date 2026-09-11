@@ -54,6 +54,7 @@ export interface CalendarProvider {
     accessToken: string;
     syncToken?: string;
     pageToken?: string;
+    timeMin?: string;
   }): Promise<{
     events: Array<{ externalId: string; etag?: string; deleted: boolean; payload: unknown }>;
     nextPageToken?: string;

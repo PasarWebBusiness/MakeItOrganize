@@ -44,6 +44,7 @@ import {
   updateCourseAction,
   updateTaskTitleAction,
 } from '@/app/actions/core';
+import { syncGoogleCalendarAction } from '@/app/actions/integrations';
 import type {
   Activity,
   CalendarEvent,
@@ -196,6 +197,8 @@ export function WorkspaceApp({
     accountEmail?: string;
     grantedScopes: string[];
     status?: 'active' | 'reauth_required' | 'revoked' | 'error';
+    calendarEnabled: boolean;
+    lastSyncedAt?: string;
   };
 }) {
   const [view, setView] = useState<ViewKey>('dashboard');
@@ -233,8 +236,8 @@ export function WorkspaceApp({
 
   useEffect(() => {
     const requestedView = new URLSearchParams(window.location.search).get('view');
-    if (requestedView !== 'settings') return;
-    const timer = window.setTimeout(() => setView('settings'), 0);
+    if (requestedView !== 'settings' && requestedView !== 'calendar') return;
+    const timer = window.setTimeout(() => setView(requestedView), 0);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -653,6 +656,15 @@ export function WorkspaceApp({
     }
   };
 
+  const syncGoogleCalendar = async () => {
+    try {
+      return await syncGoogleCalendarAction();
+    } catch (error) {
+      console.error(error);
+      return { ok: false as const, synced: 0, removed: 0, skipped: 0 };
+    }
+  };
+
   const deleteFile = (id: string) => {
     const target = files.find((f) => f.id === id);
     setFiles((all) => all.filter((f) => f.id !== id));
@@ -888,6 +900,8 @@ export function WorkspaceApp({
               onEdit={editCalendarEvent}
               onDelete={deleteCalendarEvent}
               courses={courses}
+              googleConnection={initialGoogleConnection}
+              onGoogleSync={syncGoogleCalendar}
             />
           )}
           {view === 'tasks' && (

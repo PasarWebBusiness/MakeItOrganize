@@ -293,12 +293,21 @@ export function CalendarView({
   onEdit,
   onDelete,
   courses,
+  googleConnection,
+  onGoogleSync,
 }: {
   events: CalendarEvent[];
   onAdd: (event: Omit<CalendarEvent, 'id'>) => Promise<boolean>;
   onEdit: (id: string, event: Omit<CalendarEvent, 'id'>) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
   courses: Course[];
+  googleConnection?: {
+    connected: boolean;
+    calendarEnabled: boolean;
+    accountEmail?: string;
+    lastSyncedAt?: string;
+  };
+  onGoogleSync: () => Promise<{ ok: boolean; synced: number; removed: number; skipped: number }>;
 }) {
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -309,6 +318,9 @@ export function CalendarView({
   const [deleteTarget, setDeleteTarget] = useState<CalendarEvent | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [syncingGoogle, setSyncingGoogle] = useState(false);
+  const [syncNotice, setSyncNotice] = useState('');
+  const [syncFailed, setSyncFailed] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState(
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
@@ -316,6 +328,20 @@ export function CalendarView({
   const [newTime, setNewTime] = useState('');
   const [newEndTime, setNewEndTime] = useState('');
   const [newCourse, setNewCourse] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('calendar') !== 'synced') return;
+    const count = Number(params.get('count') ?? 0);
+    const timer = window.setTimeout(
+      () => {
+        setSyncFailed(false);
+        setSyncNotice(`${Number.isFinite(count) ? count : 0} event Google berhasil disinkronkan.`);
+      },
+      0,
+    );
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -392,6 +418,20 @@ export function CalendarView({
 
   const isToday = (day: number) =>
     year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
+
+  const syncGoogle = async () => {
+    setSyncingGoogle(true);
+    setSyncNotice('');
+    setSyncFailed(false);
+    const result = await onGoogleSync();
+    setSyncingGoogle(false);
+    if (!result.ok) {
+      setSyncFailed(true);
+      setSyncNotice('Sinkronisasi gagal. Periksa izin Google lalu coba lagi.');
+      return;
+    }
+    window.location.assign(`/?view=calendar&calendar=synced&count=${result.synced}`);
+  };
 
   return (
     <div className="calendar-layout">
@@ -519,10 +559,30 @@ export function CalendarView({
           <Cloud size={18} />
           <div>
             <strong>Google Calendar</strong>
-            <small>Belum terhubung</small>
+            <small>
+              {!googleConnection?.connected
+                ? 'Akun Google belum terhubung'
+                : !googleConnection.calendarEnabled
+                  ? 'Izin Calendar belum diberikan'
+                  : googleConnection.lastSyncedAt
+                    ? `Terakhir sync ${new Date(googleConnection.lastSyncedAt).toLocaleString('id-ID')}`
+                    : 'Siap disinkronkan'}
+            </small>
           </div>
-          <span>Siapkan</span>
+          {!googleConnection?.calendarEnabled ? (
+            <button
+              type="button"
+              onClick={() => window.location.assign('/api/integrations/google/connect?feature=calendar&returnTo=/?view=calendar')}
+            >
+              Aktifkan
+            </button>
+          ) : (
+            <button type="button" disabled={syncingGoogle} onClick={() => void syncGoogle()}>
+              {syncingGoogle ? 'Sync…' : 'Sinkronkan'}
+            </button>
+          )}
         </div>
+        {syncNotice && <output className={`sync-notice ${syncFailed ? 'error' : 'success'}`}>{syncNotice}</output>}
         <Button className="agenda-add" variant="outline" onClick={openCreate}>
           <Plus size={15} /> Tambah event
         </Button>
@@ -2100,6 +2160,8 @@ export function SettingsView({
     accountEmail?: string;
     grantedScopes: string[];
     status?: 'active' | 'reauth_required' | 'revoked' | 'error';
+    calendarEnabled: boolean;
+    lastSyncedAt?: string;
   };
 }) {
   const [activeSection, setActiveSection] = useState('akun');
@@ -2108,6 +2170,7 @@ export function SettingsView({
     const status = new URLSearchParams(window.location.search).get('google');
     const messages: Record<string, { tone: 'success' | 'error'; text: string }> = {
       connected: { tone: 'success', text: 'Akun Google berhasil dihubungkan.' },
+      calendar_connected: { tone: 'success', text: 'Izin Google Calendar berhasil diaktifkan.' },
       cancelled: { tone: 'error', text: 'Proses menghubungkan Google dibatalkan.' },
       invalid_state: { tone: 'error', text: 'Sesi OAuth tidak valid atau sudah kedaluwarsa.' },
       unavailable: { tone: 'error', text: 'Google OAuth belum dikonfigurasi pada environment ini.' },
@@ -2233,10 +2296,21 @@ export function SettingsView({
               </div>
               <div className="integration-roadmap" aria-label="Status modul integrasi Google">
                 <span className={googleConnection?.connected ? 'ready' : ''}>OAuth</span>
-                <span>Calendar berikutnya</span>
+                <span className={googleConnection?.calendarEnabled ? 'ready' : ''}>
+                  {googleConnection?.calendarEnabled ? 'Calendar aktif' : 'Calendar berikutnya'}
+                </span>
                 <span>Tasks berikutnya</span>
                 <span>Drive berikutnya</span>
               </div>
+              {googleConnection?.connected && !googleConnection.calendarEnabled && (
+                <button
+                  type="button"
+                  className="integration-action calendar-consent-action"
+                  onClick={() => window.location.assign('/api/integrations/google/connect?feature=calendar&returnTo=/?view=settings')}
+                >
+                  Aktifkan Google Calendar
+                </button>
+              )}
             </section>
             <section className="panel settings-card">
               <span className="section-kicker">KEAMANAN</span>
