@@ -204,6 +204,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .google-btn, .auth-submit { min-height: 48px; font-family: var(--font-poppins); font-size: 14px; }
 .google-btn:disabled { cursor: not-allowed; opacity: .68; }
 .google-btn:disabled { cursor: not-allowed; opacity: .62; }
+.auth-google-option { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; align-items: start; margin-top: 12px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 11px; background: color-mix(in srgb, var(--accent) 30%, var(--card)); cursor: pointer; }
+.auth-google-option input { width: 17px; height: 17px; margin: 2px 0 0; accent-color: var(--primary); }
+.auth-google-option strong, .auth-google-option small { display: block; }
+.auth-google-option strong { color: var(--foreground); font-size: 11px; font-weight: 600; }
+.auth-google-option small { margin-top: 3px; color: var(--muted-foreground); font-size: 9px; line-height: 1.45; }
 .auth-divider, .auth-error, .auth-link-small, .auth-footer-link, .auth-terms, .auth-back-link { font-size: 12px; }
 .auth-field { gap: 7px; font-size: 14px; }
 .auth-field input { min-height: 48px; font-family: var(--font-poppins); font-size: 16px; background: var(--background); color: var(--foreground); }

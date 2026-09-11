@@ -1,9 +1,9 @@
 import { cookies } from 'next/headers';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { createSession } from '@/lib/auth';
-import { resolveOrCreateGoogleUser } from '@/lib/google-identity';
+import { resolveOrCreateGoogleUser, saveGoogleConnectionAfterLogin } from '@/lib/google-identity';
 import { getGoogleIntegrationConfig } from '@/lib/integration-env';
-import { GoogleOAuthProvider } from '@/lib/google-oauth';
+import { GoogleOAuthProvider, GOOGLE_CALENDAR_READ_SCOPE } from '@/lib/google-oauth';
 import { consumeGoogleLoginTransaction } from '@/lib/oauth-state';
 
 const LOGIN_STATE_COOKIE = 'mio_google_login_state';
@@ -40,8 +40,20 @@ export async function GET(request: Request) {
       redirectUri: config.authRedirectUri,
     });
     const userId = await resolveOrCreateGoogleUser(tokenSet);
+    const returnUrl = new URL(transaction.returnTo, requestUrl.origin);
+    if (tokenSet.scopes.includes(GOOGLE_CALENDAR_READ_SCOPE)) {
+      try {
+        await saveGoogleConnectionAfterLogin(userId, tokenSet, config.encryptionKey);
+        returnUrl.searchParams.set('view', 'calendar');
+        returnUrl.searchParams.set('google', 'calendar_connected');
+        returnUrl.searchParams.set('calendar', 'sync_pending');
+      } catch {
+        returnUrl.searchParams.set('view', 'calendar');
+        returnUrl.searchParams.set('google', 'calendar_failed');
+      }
+    }
     await createSession(userId);
-    return Response.redirect(new URL(transaction.returnTo, requestUrl.origin), 302);
+    return Response.redirect(returnUrl, 302);
   } catch (error) {
     const codeName = error instanceof Error && error.message === 'GOOGLE_ACCOUNT_MUST_BE_LINKED'
       ? 'link_required'

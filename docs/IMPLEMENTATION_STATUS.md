@@ -45,6 +45,7 @@ Label pada dokumen ini:
 - Akun legacy tanpa membership tidak lagi membuat halaman utama HTTP 500: migration `0005` membackfill membership owner dan authorization boundary memulihkan state yang hilang secara idempotent tanpa mengaktifkan kembali membership suspended.
 - Google OAuth login/registrasi serta koneksi workspace telah diimplementasikan; Tasks, Drive, dan AI action tetap ditandai belum aktif sampai scope serta adapter masing-masing tersedia.
 - Google Calendar tahap 2A tersedia sebagai manual read-only pull dari kalender primer dengan incremental scope, refresh token, pagination bound, sync cursor, 410 recovery, audit event, dan tenant-scoped external ID. Fitur ini belum merupakan two-way sync.
+- Login dan registrasi Google menyediakan pilihan eksplisit untuk menautkan Calendar read-only dari akun yang sama dan menjalankan initial sync setelah callback; login identity-only tetap tersedia ketika opsi dimatikan.
 - Authorization server terpusat memeriksa membership aktif dan role capability sebelum operasi workspace.
 - Session token disimpan sebagai hash SHA-256; token mentah hanya berada pada cookie HttpOnly.
 - Fondasi integrasi menyediakan external identity, OAuth transaction dengan state hash dan PKCE, encrypted token fields, connection health, sync cursor, idempotent integration job, dan transactional outbox.

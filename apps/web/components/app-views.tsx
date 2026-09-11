@@ -321,6 +321,7 @@ export function CalendarView({
   const [syncingGoogle, setSyncingGoogle] = useState(false);
   const [syncNotice, setSyncNotice] = useState('');
   const [syncFailed, setSyncFailed] = useState(false);
+  const autoSyncStarted = useRef(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState(
     `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
@@ -331,17 +332,33 @@ export function CalendarView({
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('calendar') !== 'synced') return;
-    const count = Number(params.get('count') ?? 0);
-    const timer = window.setTimeout(
-      () => {
-        setSyncFailed(false);
-        setSyncNotice(`${Number.isFinite(count) ? count : 0} event Google berhasil disinkronkan.`);
-      },
-      0,
-    );
-    return () => window.clearTimeout(timer);
-  }, []);
+    const calendarStatus = params.get('calendar');
+    if (calendarStatus === 'synced') {
+      const count = Number(params.get('count') ?? 0);
+      const timer = window.setTimeout(
+        () => {
+          setSyncFailed(false);
+          setSyncNotice(`${Number.isFinite(count) ? count : 0} event Google berhasil disinkronkan.`);
+        },
+        0,
+      );
+      return () => window.clearTimeout(timer);
+    }
+    if (calendarStatus !== 'sync_pending' || autoSyncStarted.current) return;
+    autoSyncStarted.current = true;
+    void (async () => {
+      setSyncingGoogle(true);
+      setSyncNotice('Menyesuaikan Calendar dari akun Google…');
+      const result = await onGoogleSync();
+      if (result.ok) {
+        window.location.replace(`/?view=calendar&calendar=synced&count=${result.synced}`);
+        return;
+      }
+      setSyncingGoogle(false);
+      setSyncFailed(true);
+      setSyncNotice('Akun berhasil masuk, tetapi Calendar belum dapat disinkronkan. Coba lagi dari tombol Sinkronkan.');
+    })();
+  }, [onGoogleSync]);
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();

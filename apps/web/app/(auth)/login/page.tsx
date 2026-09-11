@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [connectCalendar, setConnectCalendar] = useState(true);
 
   useEffect(() => {
     const googleError = new URLSearchParams(window.location.search).get('google_error');
@@ -74,7 +75,11 @@ export default function LoginPage() {
       <button
         className="google-btn"
         type="button"
-        onClick={() => window.location.assign('/api/auth/google/start?returnTo=/')}
+        onClick={() => window.location.assign(
+          connectCalendar
+            ? '/api/auth/google/start?calendar=1&returnTo=/?view=calendar'
+            : '/api/auth/google/start?returnTo=/',
+        )}
         aria-label="Masuk dengan Google"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -85,6 +90,22 @@ export default function LoginPage() {
         </svg>
         Masuk dengan Google
       </button>
+      <label
+        className="auth-google-option"
+        htmlFor="login-connect-calendar"
+        aria-label="Sesuaikan Google Calendar setelah masuk"
+      >
+        <input
+          id="login-connect-calendar"
+          type="checkbox"
+          checked={connectCalendar}
+          onChange={(event) => setConnectCalendar(event.target.checked)}
+        />
+        <span>
+          <strong>Sesuaikan Google Calendar setelah masuk</strong>
+          <small>Meminta akses baca kalender dari akun Google yang kamu pilih.</small>
+        </span>
+      </label>
 
       <div className="auth-divider">
         <span>atau masuk dengan email</span>

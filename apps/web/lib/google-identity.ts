@@ -166,6 +166,29 @@ export async function saveGoogleConnection(
   ]);
 }
 
+export async function saveGoogleConnectionAfterLogin(
+  userId: string,
+  tokenSet: OAuthTokenSet,
+  encryptionKey: string,
+) {
+  const db = getDb();
+  const [workspace] = await db
+    .select({ id: workspaces.id })
+    .from(workspaces)
+    .innerJoin(
+      memberships,
+      and(eq(memberships.workspaceId, workspaces.id), eq(memberships.userId, userId)),
+    )
+    .where(and(
+      eq(workspaces.type, 'personal'),
+      eq(workspaces.ownerId, userId),
+      eq(memberships.status, 'active'),
+    ))
+    .limit(1);
+  if (!workspace) throw new Error('No personal workspace available for Google connection');
+  await saveGoogleConnection(userId, workspace.id, tokenSet, encryptionKey);
+}
+
 export type GoogleConnectionSummary = {
   connected: boolean;
   accountEmail?: string;
