@@ -39,9 +39,9 @@ export async function updatePreferenceAction(key: PreferenceKey, value: boolean)
   revalidatePath('/');
 }
 
-export async function markNotificationsReadAction(ids: number[]) {
+export async function markNotificationsReadAction(ids: string[]) {
   const { user, workspaceId } = await requireDefaultWorkspace('update');
-  const normalized = [...new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0))].slice(0, 500);
+  const normalized = [...new Set(ids.filter((id) => typeof id === 'string' && id.length > 0 && id.length <= 200))].slice(0, 500);
   const db = getDb();
   await db
     .insert(userPreferences)

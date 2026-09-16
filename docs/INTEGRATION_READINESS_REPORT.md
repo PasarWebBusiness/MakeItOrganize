@@ -2,7 +2,7 @@
 
 **Aplikasi:** MakeItOrganize
 
-**Tanggal audit:** 16 September 2026
+**Tanggal audit:** 17 September 2026
 
 **Baseline:** `EarlyBrief.md`, PRD v1.0, SRS v1.0, Security baseline, ADR-0001–0005
 
@@ -53,7 +53,11 @@ Runtime initial release dikunci melalui ADR-0004: Vinext/OpenAI Sites pada Cloud
 - Calendar memiliki external provider/id, ETag, dan sync status.
 - D1 menyimpan task, course, local calendar event, preferences, OAuth metadata, connection, job, outbox, dan audit schema.
 - R2 binding `FILES` disediakan untuk binary; file bytes tidak disimpan di D1.
-- Read-state notifikasi dan preferensi AI/notifikasi memiliki server action D1; localStorage hanya cache UI perangkat.
+- Read-state notifikasi dan preferensi AI/notifikasi memiliki server action D1; localStorage hanya dipakai untuk tema perangkat.
+- Hari Ini tidak lagi memakai agenda atau mata kuliah hard-coded: event, task, progres mata kuliah, serta jumlah file dihitung dari source of truth D1.
+- Notes dan Canvas memakai resource metadata/version di D1. File binary disimpan di R2 dan metadata/relasinya disimpan di D1.
+- History membaca audit event D1; mutation UI aktif menulis audit event server-side.
+- Notifikasi dibentuk deterministik dari task/event aktual sehingga receipt tetap stabil setelah reload.
 
 ### Dokumentasi dan konfigurasi
 
@@ -71,13 +75,13 @@ Runtime initial release dikunci melalui ADR-0004: Vinext/OpenAI Sites pada Cloud
 | Deny by default dan tenant isolation | Sesuai untuk resource aktif | Membership/role/capability diverifikasi; negative integration test belum tersedia. |
 | OAuth state, PKCE, dan OIDC | Sesuai pada level kode | Login/link callback, browser-bound state, encrypted verifier/nonce, JWKS ID-token verification, expiry, dan one-time consumption tersedia; E2E menunggu credential. |
 | Token confidentiality | Sesuai sebagai fondasi | AES-GCM dan ciphertext-only columns tersedia; key rotation belum dibuat. |
-| Durable state | Sesuai untuk modul aktif | D1 menjadi source of truth untuk task/course/calendar dan metadata integrasi. Notes/files/canvas masih perlu backend lengkap. |
-| Object storage private | Sebagian | R2 binding tersedia; upload intent, signed URL, validation, quarantine, dan lifecycle belum dibuat. |
+| Durable state | Sesuai untuk modul aktif | D1 menjadi source of truth untuk task/course/calendar/note/canvas/preferences/audit dan metadata file; R2 menyimpan byte file. |
+| Object storage private | Sebagian | Upload private R2 dan metadata D1 tersedia dengan batas 25 MB; signed download, antivirus/quarantine, checksum, dan lifecycle masih Tahap 2. |
 | Calendar sync safety | Sebagian | Read-only pull, mapping, cursor, ETag, pagination bound, 410 recovery, workspace-scoped dedupe, dan audit tersedia; outbound conflict policy, webhook verification, echo prevention, pilihan kalender, serta reconciliation runner belum dibuat. |
 | AI least privilege | Sebagian | Permission/grant schema dan provider boundary tersedia; retrieval ACL, approval intent hash, tool executor, dan audit emission belum dibuat. |
-| Auditability | Sebagian | Audit dan outbox schema tersedia; setiap mutation belum otomatis menghasilkan audit event. |
+| Auditability | Sesuai untuk mutation UI aktif | Task/course/calendar mencatat event melalui action audit; note/file/canvas mencatat event pada resource action. Provider/background job tetap perlu standardisasi Tahap 2. |
 | Production authentication | Sebagian | Rate limit dan hashed session sudah ada; email verification, reset token, session rotation/revoke-all, dan re-auth belum ada. |
-| UI/GSM | Sesuai untuk baseline saat ini | Poppins, light/dark, responsive shell, modal, calendar, rich editor, canvas guard, dan navigation state tersedia. |
+| UI/GSM | Sesuai untuk baseline saat ini | Poppins, light/dark, responsive shell, modal, calendar, rich editor, canvas persistence, navigation state, serta switch tanpa transform overflow tersedia. |
 
 ## 4. Quality gate
 
@@ -111,7 +115,7 @@ Catatan operasional: perubahan session hashing membuat session lama tidak lagi d
 - Email verification, password-reset token, session rotation, revoke-all, dan re-authentication.
 - OAuth callback lengkap, secret provisioning per environment, refresh/revocation, scope reduction, dan encryption key rotation.
 - Queue runner, bounded retry, dead-letter handling, webhook verification, dan periodic reconciliation.
-- Notes autosave/version/sanitization, canvas persistence, file upload/scan/lifecycle, persistent notification records, dan append-only audit emission.
+- Sanitasi HTML notes, version history lanjutan, signed file download, scan/quarantine/lifecycle, materialized notification records, dan audit provider/background job.
 - Unit, integration, E2E, tenant-isolation negative tests, accessibility tests, backup/restore drill, dan adversarial AI security evaluation.
 - Privacy policy dan consent disclosure untuk data yang dikirim ke Google/Gemini.
 - Observability, cost quota, alerting, correlation ID propagation, dan incident runbook operational.

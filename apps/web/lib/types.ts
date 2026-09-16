@@ -57,6 +57,22 @@ export type Activity = {
   authorization?: string;
 };
 
+export type NotificationItem = {
+  id: string;
+  title: string;
+  text: string;
+  time: string;
+  type: 'task' | 'calendar' | 'ai';
+};
+
+export type CanvasDocument = {
+  id?: string;
+  title: string;
+  course: string;
+  strokes: string;
+  updated: string;
+};
+
 export type CalendarEvent = {
   id: string;
   title: string;

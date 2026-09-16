@@ -25,6 +25,14 @@ function requireText(value: string, field: string, maxLength = 160) {
   return clean;
 }
 
+function courseCode(value?: string) {
+  const code = value?.trim().toUpperCase() || null;
+  if (code && !/^[A-Z]{2}\d{5}$/.test(code)) {
+    throw new Error('Kode mata kuliah harus mengikuti format seperti TI12345');
+  }
+  return code;
+}
+
 function jakartaDate(date: string, time = '00:00') {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) {
     throw new Error('Tanggal atau waktu tidak valid');
@@ -95,7 +103,7 @@ export async function createCourseAction(data: {
   const { workspaceId } = await requireDefaultWorkspace('create');
 
   const name = requireText(data.name, 'Nama mata kuliah', 120);
-  const code = data.code?.trim().slice(0, 32) || null;
+  const code = courseCode(data.code);
   const lecturer = data.lecturer?.trim().slice(0, 120) || null;
   const tone = data.tone && courseTones.has(data.tone) ? data.tone : 'blue';
   const db = getDb();
@@ -154,7 +162,7 @@ export async function updateCourseAction(
     .update(courses)
     .set({
       name,
-      code: data.code?.trim().slice(0, 32) || null,
+      code: courseCode(data.code),
       lecturer: data.lecturer?.trim().slice(0, 120) || null,
       color: tone,
       updatedAt: new Date(),
@@ -201,6 +209,7 @@ export async function fetchUserCalendarEvents() {
       timezone: calendarEvents.timezone,
       recurrence: calendarEvents.recurrence,
       courseName: courses.name,
+      createdAt: calendarEvents.createdAt,
     })
     .from(calendarEvents)
     .leftJoin(courses, eq(calendarEvents.courseId, courses.id))

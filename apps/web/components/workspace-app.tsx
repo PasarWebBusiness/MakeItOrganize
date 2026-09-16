@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import { IdleSessionGuard } from '@/components/idle-session-guard';
 import {
   Bell,
   BookOpen,
@@ -31,7 +32,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { seedActivities, seedFiles, seedNotes, seedTasks, seedCourses, seedCalendarEvents } from '@/lib/demo-data';
 import {
   archiveCourseAction,
   createCalendarEventAction,
@@ -45,12 +45,24 @@ import {
   updateTaskTitleAction,
 } from '@/app/actions/core';
 import { syncGoogleCalendarAction } from '@/app/actions/integrations';
+import {
+  createNoteAction,
+  deleteFileAction,
+  deleteNoteAction,
+  renameFileAction,
+  recordActivityAction,
+  updateNoteAction,
+  uploadFileAction,
+  saveCanvasAction,
+} from '@/app/actions/resources';
 import type {
   Activity,
   CalendarEvent,
+  CanvasDocument,
   Course,
   FileItem,
   Note,
+  NotificationItem,
   Task,
   ViewKey,
 } from '@/lib/types';
@@ -176,6 +188,11 @@ export function WorkspaceApp({
   initialTasks,
   initialCourses,
   initialCalendarEvents,
+  initialNotes,
+  initialFiles,
+  initialActivities,
+  initialNotifications,
+  initialCanvas,
   initialPreferences,
   initialGoogleConnection,
 }: {
@@ -183,6 +200,11 @@ export function WorkspaceApp({
   initialTasks?: Task[];
   initialCourses?: Course[];
   initialCalendarEvents?: CalendarEvent[];
+  initialNotes?: Note[];
+  initialFiles?: FileItem[];
+  initialActivities?: Activity[];
+  initialNotifications?: NotificationItem[];
+  initialCanvas?: CanvasDocument;
   initialPreferences?: {
     browserNotifications: boolean;
     emailNotifications: boolean;
@@ -190,7 +212,7 @@ export function WorkspaceApp({
     aiRead: boolean;
     aiMove: boolean;
     aiCreate: boolean;
-    readNotificationIds: number[];
+    readNotificationIds: string[];
   };
   initialGoogleConnection?: {
     connected: boolean;
@@ -202,13 +224,13 @@ export function WorkspaceApp({
   };
 }) {
   const [view, setView] = useState<ViewKey>('dashboard');
-  const [tasks, setTasks] = useState<Task[]>(initialTasks || seedTasks);
-  const [notes, setNotes] = useState<Note[]>(seedNotes);
-  const [files, setFiles] = useState<FileItem[]>(seedFiles);
-  const [activities, setActivities] = useState<Activity[]>(seedActivities);
-  const [courses, setCourses] = useState<Course[]>(initialCourses ?? seedCourses);
+  const [tasks, setTasks] = useState<Task[]>(initialTasks ?? []);
+  const [notes, setNotes] = useState<Note[]>(initialNotes ?? []);
+  const [files, setFiles] = useState<FileItem[]>(initialFiles ?? []);
+  const [activities, setActivities] = useState<Activity[]>(initialActivities ?? []);
+  const [courses, setCourses] = useState<Course[]>(initialCourses ?? []);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>(
-    initialCalendarEvents ?? seedCalendarEvents,
+    initialCalendarEvents ?? [],
   );
   const [dark, setDark] = useState(() =>
     typeof document === 'undefined'
@@ -226,8 +248,9 @@ export function WorkspaceApp({
   const [query, setQuery] = useState('');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [notifCount, setNotifCount] = useState(() =>
-    Math.max(0, 3 - (initialPreferences?.readNotificationIds.length ?? 0)),
+    Math.max(0, (initialNotifications?.length ?? 0) - (initialPreferences?.readNotificationIds.length ?? 0)),
   );
+  const [canvas, setCanvas] = useState<CanvasDocument>(initialCanvas ?? { title: 'Canvas tanpa judul', course: 'Tanpa mata kuliah', strokes: '[]', updated: 'Belum disimpan' });
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
@@ -241,8 +264,10 @@ export function WorkspaceApp({
     return () => window.clearTimeout(timer);
   }, []);
 
-  const addActivity = (activity: Activity) =>
+  const addActivity = (activity: Activity, persist = true) => {
     setActivities((current) => [activity, ...current]);
+    if (persist) void recordActivityAction(activity).catch(console.error);
+  };
 
   const addTask = async (rawTitle = taskTitle, course = taskCourse) => {
     const clean = rawTitle.trim();
@@ -321,14 +346,16 @@ export function WorkspaceApp({
     );
     
     // Server execution
-    toggleTaskAction(id, newStatus).catch((error) => {
-      console.error(error);
-      setTasks((current) =>
-        current.map((task) =>
-          task.id === id ? { ...task, status: target.status } : task,
-        ),
-      );
-    });
+    toggleTaskAction(id, newStatus)
+      .then(() => addActivity({
+        id: crypto.randomUUID(), actor: 'Kamu',
+        action: newStatus === 'done' ? 'menyelesaikan task' : 'membuka kembali task',
+        resource: target.title, time: 'Baru saja', status: 'success', authorization: 'User action',
+      }))
+      .catch((error) => {
+        console.error(error);
+        setTasks((current) => current.map((task) => task.id === id ? { ...task, status: target.status } : task));
+      });
   };
 
   const editTask = (id: string, patch: Partial<Task>) => {
@@ -544,20 +571,35 @@ export function WorkspaceApp({
     }
   };
 
-  const addNote = () => {
-    const fresh: Note = {
-      id: crypto.randomUUID(),
+  const addNote = async () => {
+    try {
+      const id = await createNoteAction({ title: 'Catatan tanpa judul', courseName: 'Tanpa mata kuliah', body: '' });
+      const fresh: Note = {
+      id,
       title: 'Catatan tanpa judul',
       course: 'Tanpa mata kuliah',
       body: '',
       updated: 'Baru saja',
     };
-    setNotes((all) => [fresh, ...all]);
-    return fresh;
+      setNotes((all) => [fresh, ...all]);
+      return fresh;
+    } catch (error) {
+      console.error(error);
+      return null;
+    }
   };
 
-  const deleteNote = (id: string) => {
+  const deleteNote = async (id: string) => {
+    const previous = notes;
     setNotes((all) => all.filter((n) => n.id !== id));
+    try { await deleteNoteAction(id); } catch (error) { console.error(error); setNotes(previous); }
+  };
+
+  const saveNote = async (note: Note) => {
+    try {
+      await updateNoteAction(note.id, { title: note.title || 'Catatan tanpa judul', courseName: note.course, body: note.body });
+      return true;
+    } catch (error) { console.error(error); return false; }
   };
 
   const addCalendarEvent = async (event: Omit<CalendarEvent, 'id'>) => {
@@ -665,10 +707,11 @@ export function WorkspaceApp({
     }
   };
 
-  const deleteFile = (id: string) => {
+  const deleteFile = async (id: string) => {
     const target = files.find((f) => f.id === id);
     setFiles((all) => all.filter((f) => f.id !== id));
     if (target) {
+      try { await deleteFileAction(id); } catch (error) { console.error(error); setFiles((all) => [target, ...all]); return; }
       addActivity({
         id: crypto.randomUUID(),
         actor: 'Kamu',
@@ -677,16 +720,18 @@ export function WorkspaceApp({
         time: 'Baru saja',
         status: 'success',
         authorization: 'User action',
-      });
+      }, false);
     }
   };
 
-  const renameFile = (id: string, newName: string) => {
+  const renameFile = async (id: string, newName: string) => {
+    const target = files.find((file) => file.id === id);
     setFiles((all) =>
       all.map((f) =>
         f.id === id ? { ...f, name: newName, updated: 'Baru saja' } : f,
       ),
     );
+    try { await renameFileAction(id, newName); } catch (error) { console.error(error); if (target) setFiles((all) => all.map((file) => file.id === id ? target : file)); return; }
     addActivity({
       id: crypto.randomUUID(),
       actor: 'Kamu',
@@ -695,7 +740,24 @@ export function WorkspaceApp({
       time: 'Baru saja',
       status: 'success',
       authorization: 'User action',
-    });
+    }, false);
+  };
+
+  const uploadFiles = async (selected: File[], courseName: string) => {
+    for (const file of selected) {
+      const formData = new FormData();
+      formData.set('file', file);
+      formData.set('courseName', courseName);
+      const id = await uploadFileAction(formData);
+      setFiles((all) => [{ id, name: file.name, type: file.name.split('.').at(-1)?.toUpperCase() || 'FILE', size: `${Math.max(1, Math.round(file.size / 1024))} KB`, course: courseName || 'Belum diatur', updated: 'Baru saja' }, ...all]);
+    }
+  };
+
+  const saveCanvas = async (strokes: string) => {
+    try {
+      const id = await saveCanvasAction({ id: canvas.id, title: canvas.title, courseName: canvas.course, strokes });
+      setCanvas((current) => ({ ...current, id, strokes, updated: 'Baru saja' }));
+    } catch (error) { console.error(error); }
   };
 
   // AI tool registration
@@ -768,9 +830,20 @@ export function WorkspaceApp({
       : titles[view];
 
   const activeTasks = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled');
+  const syncedCourses = courses.map((course) => {
+    const relatedTasks = tasks.filter((task) => task.course === course.name);
+    return {
+      ...course,
+      tasks: relatedTasks.length,
+      files: files.filter((file) => file.course === course.name).length,
+      progress: relatedTasks.length ? Math.round((relatedTasks.filter((task) => task.status === 'done').length / relatedTasks.length) * 100) : 0,
+    };
+  });
+  const syncedSelectedCourse = selectedCourse ? syncedCourses.find((course) => course.id === selectedCourse.id) ?? selectedCourse : null;
 
   return (
     <div className="app-frame">
+      <IdleSessionGuard />
       {mobileOpen && (
         <button
           className="mobile-scrim"
@@ -877,9 +950,9 @@ export function WorkspaceApp({
               <div className="day-score">
                 <span>
                   <strong>
-                    {tasks.filter((task) => task.status === 'done').length + 3}
+                    {tasks.filter((task) => task.status === 'done').length}
                   </strong>
-                  /{tasks.length + 3}
+                  /{tasks.length}
                 </span>
                 <small>agenda selesai</small>
               </div>
@@ -889,6 +962,8 @@ export function WorkspaceApp({
             <DashboardView
               tasks={tasks}
               files={files}
+              courses={syncedCourses}
+              events={calendarEvents}
               onToggle={toggleTask}
               onNavigate={navigate}
             />
@@ -917,11 +992,11 @@ export function WorkspaceApp({
           )}
           {(view === 'courses' || view === 'course-detail') && (
             <CoursesView
-              courses={courses}
+              courses={syncedCourses}
               tasks={tasks}
               files={files}
               notes={notes}
-              selectedCourse={selectedCourse}
+              selectedCourse={syncedSelectedCourse}
               onNavigate={navigate}
               onSelectCourse={(c) => navigate('course-detail', c)}
               onBack={() => { setSelectedCourse(null); navigate('courses'); }}
@@ -934,12 +1009,11 @@ export function WorkspaceApp({
           {view === 'files' && (
             <FilesView
               files={files}
-              setFiles={setFiles}
               query={query}
               courses={courses}
-              addActivity={addActivity}
               onDelete={deleteFile}
               onRename={renameFile}
+              onUpload={uploadFiles}
             />
           )}
           {view === 'notes' && (
@@ -948,17 +1022,20 @@ export function WorkspaceApp({
               setNotes={setNotes}
               onAdd={addNote}
               onDelete={deleteNote}
+              onSave={saveNote}
+              courses={courses}
             />
           )}
-          {view === 'canvas' && <CanvasView />}
+          {view === 'canvas' && <CanvasView canvas={canvas} onSave={saveCanvas} />}
           {view === 'ai' && (
-            <AIView tasks={tasks} notes={notes} files={files} addActivity={addActivity} />
+            <AIView tasks={tasks} notes={notes} files={files} />
           )}
           {view === 'history' && <HistoryView activities={activities} />}
           {view === 'notifications' && (
             <NotificationsView
               onUnreadChange={setNotifCount}
               initialRead={initialPreferences?.readNotificationIds}
+              items={initialNotifications ?? []}
             />
           )}
           {view === 'settings' && (

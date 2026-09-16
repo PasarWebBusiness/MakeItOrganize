@@ -6,6 +6,8 @@ import { cookies } from 'next/headers';
 
 const SESSION_COOKIE_NAME = 'mio_session';
 const SESSION_EXPIRY_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
+export const SESSION_IDLE_TIMEOUT_MS = 1000 * 60 * 30; // 30 minutes
+const SESSION_TOUCH_INTERVAL_MS = 1000 * 60 * 5;
 
 function toHex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -86,9 +88,20 @@ export async function getCurrentUser() {
   
   if (!session) return null;
   
-  if (session.expiresAt.getTime() < Date.now()) {
+  const now = Date.now();
+  if (
+    session.expiresAt.getTime() < now ||
+    session.updatedAt.getTime() + SESSION_IDLE_TIMEOUT_MS < now
+  ) {
     await db.delete(sessions).where(eq(sessions.id, hashSessionToken(sessionToken)));
     return null;
+  }
+
+  if (session.updatedAt.getTime() + SESSION_TOUCH_INTERVAL_MS < now) {
+    await db
+      .update(sessions)
+      .set({ updatedAt: new Date(now) })
+      .where(eq(sessions.id, session.id));
   }
   
   const [user] = await db
@@ -98,4 +111,26 @@ export async function getCurrentUser() {
     .limit(1);
     
   return user ?? null;
+}
+
+export async function touchCurrentSession() {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) return false;
+
+  const db = getDb();
+  const sessionId = hashSessionToken(sessionToken);
+  const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+  if (!session) return false;
+
+  const now = Date.now();
+  if (session.expiresAt.getTime() < now || session.updatedAt.getTime() + SESSION_IDLE_TIMEOUT_MS < now) {
+    await db.delete(sessions).where(eq(sessions.id, sessionId));
+    return false;
+  }
+
+  if (session.updatedAt.getTime() + SESSION_TOUCH_INTERVAL_MS < now) {
+    await db.update(sessions).set({ updatedAt: new Date(now) }).where(eq(sessions.id, sessionId));
+  }
+  return true;
 }

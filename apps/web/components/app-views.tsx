@@ -49,10 +49,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { CanvasBoard } from './canvas-board';
+import { CanvasBoard, type Stroke } from './canvas-board';
 import type {
   Activity,
   CalendarEvent,
+  CanvasDocument,
   Course,
   FileItem,
   Note,
@@ -132,17 +133,24 @@ function TaskRow({
 export function DashboardView({
   tasks,
   files,
+  courses,
+  events,
   onToggle,
   onNavigate,
 }: {
   tasks: Task[];
   files: FileItem[];
+  courses: Course[];
+  events: CalendarEvent[];
   onToggle: (id: string) => void;
   onNavigate: (view: ViewKey) => void;
 }) {
   const activeTasks = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled');
   const overdueTasks = activeTasks.filter((t) => isOverdue(t.dueDate));
   const recentFiles = [...files].slice(0, 2);
+  const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+  const todayEvents = events.filter((event) => event.date === todayKey).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+  const focusCourse = [...courses].sort((a, b) => b.progress - a.progress)[0];
 
   return (
     <>
@@ -160,8 +168,7 @@ export function DashboardView({
               </>
             ) : (
               <>
-                Kamu punya jeda <strong>2 jam</strong> sebelum kelas berikutnya.
-                Mulai tugas Regresi sekarang agar selesai sebelum tenggat malam ini.
+                {activeTasks.length > 0 ? <><strong>{activeTasks.length} tugas aktif.</strong> Mulai dari prioritas tertinggi agar agenda tetap terkendali.</> : <>Tidak ada tugas aktif. Jadwalmu siap untuk aktivitas berikutnya.</>}
               </>
             )}
           </p>
@@ -186,9 +193,8 @@ export function DashboardView({
             </button>
           </div>
           <div className="timeline">
-            <Timeline time="08.00" title="Statistika II" detail="Gedung B · Ruang 204" state="past" />
-            <Timeline time="13.30" title="Manajemen Operasi" detail="Online · Google Meet" state="current" />
-            <Timeline time="16.00" title="Waktu fokus" detail="Kerjakan analisis regresi" />
+            {todayEvents.map((event) => <Timeline key={event.id} time={(event.startTime || 'Sehari').replace(':', '.')} title={event.title} detail={event.course || 'Agenda kalender'} />)}
+            {todayEvents.length === 0 && <EmptyState icon={CalendarDays} title="Belum ada agenda" text="Tambahkan event untuk menampilkan jadwal hari ini." />}
           </div>
         </section>
         <section className="panel tasks-panel">
@@ -221,13 +227,13 @@ export function DashboardView({
           </div>
           <div>
             <span className="section-kicker">LANJUTKAN</span>
-            <h3>Statistika II</h3>
-            <p>Materi terakhir: Regresi Linear Berganda</p>
+            <h3>{focusCourse?.name || 'Belum ada mata kuliah'}</h3>
+            <p>{focusCourse ? `${focusCourse.tasks} tugas · ${focusCourse.files} file terhubung` : 'Tambahkan mata kuliah untuk mulai mengorganisir materi.'}</p>
           </div>
           <div className="progress-track">
-            <span style={{ width: '68%' }} />
+            <span style={{ width: `${focusCourse?.progress || 0}%` }} />
           </div>
-          <small>5 dari 7 materi minggu ini dibaca</small>
+          <small>{focusCourse?.progress || 0}% tugas mata kuliah selesai</small>
           <button className="open-course" onClick={() => onNavigate('courses')}>
             Buka mata kuliah <ChevronRight size={16} />
           </button>
@@ -1313,20 +1319,18 @@ export function CoursesView({
 
 export function FilesView({
   files,
-  setFiles,
   query,
   courses,
-  addActivity,
   onDelete,
   onRename,
+  onUpload,
 }: {
   files: FileItem[];
-  setFiles: React.Dispatch<React.SetStateAction<FileItem[]>>;
   query: string;
   courses: { name: string }[];
-  addActivity: (a: Activity) => void;
-  onDelete: (id: string) => void;
-  onRename: (id: string, name: string) => void;
+  onDelete: (id: string) => void | Promise<void>;
+  onRename: (id: string, name: string) => void | Promise<void>;
+  onUpload: (files: File[], courseName: string) => Promise<void>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [courseFilter, setCourseFilter] = useState('');
@@ -1350,28 +1354,9 @@ export function FilesView({
       return 0;
     });
 
-  const upload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const upload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.target.files || []);
-    const incoming = selected.map((file) => ({
-      id: crypto.randomUUID(),
-      name: file.name,
-      type: file.name.split('.').at(-1)?.toUpperCase() || 'FILE',
-      size: `${Math.max(1, Math.round(file.size / 1024))} KB`,
-      course: courseFilter || 'Belum diatur',
-      updated: 'Baru saja',
-    }));
-    setFiles((all) => [...incoming, ...all]);
-    incoming.forEach((file) =>
-      addActivity({
-        id: crypto.randomUUID(),
-        actor: 'Kamu',
-        action: 'mengunggah file',
-        resource: file.name,
-        time: 'Baru saja',
-        status: 'success',
-        authorization: 'User action',
-      }),
-    );
+    if (selected.length) await onUpload(selected, courseFilter || 'Belum diatur');
     event.target.value = '';
   };
 
@@ -1388,7 +1373,7 @@ export function FilesView({
 
   const saveRename = () => {
     if (renamingId && renameValue.trim()) {
-      onRename(renamingId, renameValue.trim());
+      void onRename(renamingId, renameValue.trim());
     }
     setRenamingId(null);
   };
@@ -1419,7 +1404,7 @@ export function FilesView({
             <button>
               <Download size={14} /> Unduh
             </button>
-            <button className="danger" onClick={() => { onDelete(contextMenu.id); setContextMenu(null); }}>
+            <button className="danger" onClick={() => { void onDelete(contextMenu.id); setContextMenu(null); }}>
               <Trash2 size={14} /> Hapus
             </button>
           </div>
@@ -1532,11 +1517,15 @@ export function NotesView({
   setNotes,
   onAdd,
   onDelete,
+  onSave,
+  courses,
 }: {
   notes: Note[];
   setNotes: React.Dispatch<React.SetStateAction<Note[]>>;
-  onAdd: () => Note;
-  onDelete: (id: string) => void;
+  onAdd: () => Promise<Note | null>;
+  onDelete: (id: string) => void | Promise<void>;
+  onSave: (note: Note) => Promise<boolean>;
+  courses: Course[];
 }) {
   const [selected, setSelected] = useState(notes[0]?.id ?? '');
   const [search, setSearch] = useState('');
@@ -1560,14 +1549,14 @@ export function NotesView({
       ),
     );
 
-  const create = () => {
-    const fresh = onAdd();
-    setSelected(fresh.id);
+  const create = async () => {
+    const fresh = await onAdd();
+    if (fresh) setSelected(fresh.id);
   };
 
   const handleDelete = (id: string) => {
     const remaining = notes.filter((n) => n.id !== id);
-    onDelete(id);
+    void onDelete(id);
     setSelected(remaining[0]?.id ?? '');
   };
 
@@ -1593,12 +1582,17 @@ export function NotesView({
     update({ body: editor.innerHTML });
   };
 
+  const save = () => {
+    const current = notes.find((item) => item.id === selected);
+    if (current) void onSave(current);
+  };
+
   return (
     <div className="notes-layout">
       <aside className="panel note-list">
         <div className="note-list-head">
           <strong>Catatan</strong>
-          <button onClick={create} aria-label="Catatan baru">
+          <button onClick={() => void create()} aria-label="Catatan baru">
             <Plus size={18} />
           </button>
         </div>
@@ -1663,6 +1657,7 @@ export function NotesView({
             className="note-title"
             value={note.title}
             onChange={(event) => update({ title: event.target.value })}
+            onBlur={save}
             placeholder="Judul catatan"
           />
           <div className="note-course-row">
@@ -1670,12 +1665,10 @@ export function NotesView({
               className="note-course-select"
               value={note.course}
               onChange={(e) => update({ course: e.target.value })}
+              onBlur={save}
               aria-label="Pilih mata kuliah"
             >
-              <option>Statistika II</option>
-              <option>Manajemen Operasi</option>
-              <option>Pemrograman Web</option>
-              <option>Metode Penelitian</option>
+              {courses.map((course) => <option key={course.id}>{course.name}</option>)}
               <option>Tanpa mata kuliah</option>
             </select>
           </div>
@@ -1687,6 +1680,7 @@ export function NotesView({
             suppressContentEditableWarning
             dangerouslySetInnerHTML={{ __html: note.body }}
             onInput={(event) => update({ body: event.currentTarget.innerHTML })}
+            onBlur={save}
             aria-label="Isi catatan"
             data-placeholder="Mulai menulis…"
           />
@@ -1697,7 +1691,7 @@ export function NotesView({
             icon={FileText}
             title="Belum ada catatan"
             text="Buat catatan pertamamu."
-            action={<Button size="sm" onClick={create}><Plus size={14} /> Catatan baru</Button>}
+            action={<Button size="sm" onClick={() => void create()}><Plus size={14} /> Catatan baru</Button>}
           />
         </section>
       )}
@@ -1707,14 +1701,24 @@ export function NotesView({
 
 /* ─── Canvas ─────────────────────────────────────────────── */
 
-export function CanvasView() {
+export function CanvasView({ canvas, onSave }: { canvas: CanvasDocument; onSave: (strokes: string) => Promise<void> }) {
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  let initialStrokes: Stroke[] = [];
+  try {
+    const parsed: unknown = JSON.parse(canvas.strokes);
+    if (Array.isArray(parsed)) initialStrokes = parsed as Stroke[];
+  } catch { /* invalid legacy canvas starts empty */ }
+  const scheduleSave = (strokes: Stroke[]) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => void onSave(JSON.stringify(strokes)), 700);
+  };
   return (
     <section className="canvas-view">
       <div className="canvas-meta panel">
         <div>
-          <span className="section-kicker">STATISTIKA II</span>
-          <h2>Catatan kelas — Regresi</h2>
-          <p>Terakhir disimpan baru saja</p>
+          <span className="section-kicker">{canvas.course.toUpperCase()}</span>
+          <h2>{canvas.title}</h2>
+          <p>Terakhir disimpan {canvas.updated}</p>
         </div>
         <div>
           <Button variant="outline">
@@ -1725,7 +1729,7 @@ export function CanvasView() {
           </Button>
         </div>
       </div>
-      <CanvasBoard />
+      <CanvasBoard initialStrokes={initialStrokes} onChange={scheduleSave} />
     </section>
   );
 }
@@ -1750,12 +1754,10 @@ export function AIView({
   tasks,
   notes,
   files,
-  addActivity,
 }: {
   tasks: Task[];
   notes: Note[];
   files: FileItem[];
-  addActivity: (a: Activity) => void;
 }) {
   const [messages, setMessages] = useState([
     {
@@ -1796,7 +1798,7 @@ export function AIView({
       setRunning(false);
       setStep('');
       if (/pindah|rapikan|buat|jadwal/i.test(msg)) {
-        setApproval(true);
+        setMessages((all) => [...all, { role: 'assistant', text: 'Permintaan perubahan terdeteksi. Eksekusi AI belum diaktifkan sebelum Tahap 2, jadi tidak ada data yang diubah.' }]);
       } else {
         const activeTask = tasks.find((t) => t.status !== 'done');
         setMessages((all) => [
@@ -1807,26 +1809,6 @@ export function AIView({
           },
         ]);
       }
-    });
-  };
-
-  const approve = (mode: string) => {
-    setApproval(false);
-    setMessages((all) => [
-      ...all,
-      {
-        role: 'assistant',
-        text: `Selesai. 3 file Statistika II sudah dipindahkan ke folder Materi. Action ini tercatat di History. Izin: ${mode}.`,
-      },
-    ]);
-    addActivity({
-      id: crypto.randomUUID(),
-      actor: 'Gemini',
-      action: 'memindahkan 3 file',
-      resource: 'Statistika II / Materi',
-      time: 'Baru saja',
-      status: 'success',
-      authorization: mode,
     });
   };
 
@@ -1850,7 +1832,7 @@ export function AIView({
         <div className="context-item">
           <CheckCircle2 size={17} />
           <span>
-            File<small>{files.length} file contoh tersedia</small>
+            File<small>{files.length} file tersedia</small>
           </span>
         </div>
         <div className="context-item">
@@ -1926,12 +1908,8 @@ export function AIView({
                 <Button variant="ghost" onClick={() => setApproval(false)}>
                   Tolak
                 </Button>
-                <Button variant="outline" onClick={() => approve('Allow once')}>
-                  Izinkan sekali
-                </Button>
-                <Button onClick={() => approve('Allow conversation')}>
-                  Izinkan percakapan
-                </Button>
+                <Button variant="outline" disabled>Izinkan sekali</Button>
+                <Button disabled>Aktif setelah Tahap 2</Button>
               </footer>
             </div>
           )}
@@ -2059,35 +2037,14 @@ const History = FileText;
 export function NotificationsView({
   onUnreadChange,
   initialRead = [],
+  items,
 }: {
   onUnreadChange: (count: number) => void;
-  initialRead?: number[];
+  initialRead?: string[];
+  items: import('@/lib/types').NotificationItem[];
 }) {
-  const [read, setRead] = useState<number[]>(initialRead);
+  const [read, setRead] = useState<string[]>(initialRead);
   const [filter, setFilter] = useState('Semua');
-  const items = [
-    {
-      id: 1,
-      title: 'Tugas Statistika II deadline malam ini',
-      text: 'Selesaikan analisis regresi sebelum 21.00.',
-      time: '12 menit lalu',
-      type: 'task',
-    },
-    {
-      id: 2,
-      title: 'Kelas dimulai 30 menit lagi',
-      text: 'Manajemen Operasi · Google Meet',
-      time: '1 jam lalu',
-      type: 'calendar',
-    },
-    {
-      id: 3,
-      title: 'Ringkasan mingguan siap',
-      text: '5 task selesai dan 3 materi baru minggu ini.',
-      time: 'Kemarin',
-      type: 'ai',
-    },
-  ];
 
   const visible = items.filter((item) =>
     filter === 'Task' ? item.type === 'task' :
@@ -2096,9 +2053,8 @@ export function NotificationsView({
     true,
   );
 
-  const updateRead = (next: number[]) => {
+  const updateRead = (next: string[]) => {
     setRead(next);
-    localStorage.setItem('mio-read-notifications', JSON.stringify(next));
     onUnreadChange(Math.max(0, items.length - next.length));
     void import('../app/actions/preferences').then(({ markNotificationsReadAction }) =>
       markNotificationsReadAction(next),
@@ -2198,7 +2154,6 @@ export function SettingsView({
     return () => window.clearTimeout(timer);
   }, []);
   const persistedSetter = (key: string, setter: (value: boolean) => void) => (value: boolean) => {
-    window.localStorage.setItem(`mio-setting-${key}`, String(value));
     setter(value);
     const serverKeys = {
       browser: 'browserNotifications',

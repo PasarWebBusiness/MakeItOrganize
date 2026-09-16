@@ -12,12 +12,14 @@ import {
 } from 'lucide-react';
 
 type Point = { x: number; y: number };
-type Stroke = { points: Point[]; color: string; width: number; alpha: number };
+export type Stroke = { points: Point[]; color: string; width: number; alpha: number };
 
-export function CanvasBoard() {
+export function CanvasBoard({ initialStrokes = [], onChange }: { initialStrokes?: Stroke[]; onChange?: (strokes: Stroke[]) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [strokes, setStrokes] = useState<Stroke[]>(initialStrokes);
   const [redo, setRedo] = useState<Stroke[]>([]);
+  const onChangeRef = useRef(onChange);
+  const mounted = useRef(false);
   const [tool, setTool] = useState<'pen' | 'highlight' | 'eraser'>('pen');
   const drawing = useRef(false);
   const current = useRef<Stroke | null>(null);
@@ -66,6 +68,11 @@ export function CanvasBoard() {
   };
 
   useEffect(render, [strokes]);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  useEffect(() => {
+    if (!mounted.current) { mounted.current = true; return; }
+    onChangeRef.current?.(strokes);
+  }, [strokes]);
 
   const point = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -170,7 +177,7 @@ export function CanvasBoard() {
         onPointerMove={move}
         onPointerUp={end}
         onPointerCancel={end}
-        aria-label="Canvas catatan Statistika II"
+        aria-label="Canvas catatan"
       />
       <p className="canvas-hint">
         <RotateCcw size={14} /> Mendukung mouse, touch, dan stylus. Catatan
