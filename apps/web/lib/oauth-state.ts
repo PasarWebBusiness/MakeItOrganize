@@ -85,7 +85,11 @@ export async function consumeGoogleOAuthTransaction(state: string, encryptionKey
   };
 }
 
-export async function createGoogleLoginTransaction(returnTo: string, encryptionKey: string) {
+export async function createGoogleLoginTransaction(
+  returnTo: string,
+  encryptionKey: string,
+  intent: 'login' | 'register' = 'login',
+) {
   const state = base64Url(randomBytes(32));
   const codeVerifier = base64Url(randomBytes(48));
   const nonce = base64Url(randomBytes(32));
@@ -93,6 +97,7 @@ export async function createGoogleLoginTransaction(returnTo: string, encryptionK
 
   await getDb().insert(oauthLoginTransactions).values({
     id: crypto.randomUUID(),
+    intent,
     stateHash: sha256(state),
     codeVerifierCiphertext: await encryptIntegrationSecret(codeVerifier, encryptionKey),
     nonceCiphertext: await encryptIntegrationSecret(nonce, encryptionKey),
@@ -123,6 +128,7 @@ export async function consumeGoogleLoginTransaction(state: string, encryptionKey
   if (!claimed) throw new Error('OAuth login transaction was already consumed');
 
   return {
+    intent: transaction.intent,
     returnTo: transaction.returnTo,
     codeVerifier: await decryptIntegrationSecret(transaction.codeVerifierCiphertext, encryptionKey),
     nonce: await decryptIntegrationSecret(transaction.nonceCiphertext, encryptionKey),

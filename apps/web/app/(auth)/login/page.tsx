@@ -10,16 +10,23 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [connectCalendar, setConnectCalendar] = useState(true);
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    const googleError = new URLSearchParams(window.location.search).get('google_error');
+    const query = new URLSearchParams(window.location.search);
+    if (query.get('google_registered') === '1') {
+      const timer = window.setTimeout(() => setSuccess('Akun Google berhasil didaftarkan. Silakan masuk.'), 0);
+      return () => window.clearTimeout(timer);
+    }
+    const googleError = query.get('google_error');
     if (!googleError) return;
     const messages: Record<string, string> = {
       cancelled: 'Proses masuk dengan Google dibatalkan.',
       configuration: 'Google OAuth belum dikonfigurasi pada environment ini.',
       invalid_state: 'Sesi Google OAuth tidak valid atau sudah kedaluwarsa. Silakan coba lagi.',
       link_required: 'Email ini sudah terdaftar. Masuk dengan password lalu hubungkan Google dari Settings.',
+      not_registered: 'Akun Google ini belum terdaftar. Pilih Daftar sekarang terlebih dahulu.',
+      already_registered: 'Akun Google ini sudah terdaftar. Silakan masuk.',
       provider: 'Google menolak permintaan autentikasi.',
       failed: 'Masuk dengan Google gagal. Silakan coba lagi.',
     };
@@ -75,11 +82,7 @@ export default function LoginPage() {
       <button
         className="google-btn"
         type="button"
-        onClick={() => window.location.assign(
-          connectCalendar
-            ? '/api/auth/google/start?calendar=1&returnTo=/?view=calendar'
-            : '/api/auth/google/start?returnTo=/',
-        )}
+        onClick={() => window.location.assign('/api/auth/google/start?returnTo=/')}
         aria-label="Masuk dengan Google"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -90,28 +93,20 @@ export default function LoginPage() {
         </svg>
         Masuk dengan Google
       </button>
-      <label
-        className="auth-google-option"
-        htmlFor="login-connect-calendar"
-        aria-label="Sesuaikan Google Calendar setelah masuk"
-      >
-        <input
-          id="login-connect-calendar"
-          type="checkbox"
-          checked={connectCalendar}
-          onChange={(event) => setConnectCalendar(event.target.checked)}
-        />
-        <span>
-          <strong>Sesuaikan Google Calendar setelah masuk</strong>
-          <small>Meminta akses baca kalender dari akun Google yang kamu pilih.</small>
-        </span>
-      </label>
+      <p className="auth-google-note">
+        Login hanya meminta nama dan email. Izin Calendar dapat diaktifkan terpisah dari Settings.
+      </p>
 
       <div className="auth-divider">
         <span>atau masuk dengan email</span>
       </div>
 
       <form onSubmit={handleSubmit} className="auth-form" noValidate>
+        {success && (
+          <output className="auth-success">
+            {success}
+          </output>
+        )}
         {error && (
           <div className="auth-error" role="alert">
             {error}

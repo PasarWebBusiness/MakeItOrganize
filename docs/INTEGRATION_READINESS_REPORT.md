@@ -2,7 +2,7 @@
 
 **Aplikasi:** MakeItOrganize
 
-**Tanggal audit:** 10 September 2026
+**Tanggal audit:** 16 September 2026
 
 **Baseline:** `EarlyBrief.md`, PRD v1.0, SRS v1.0, Security baseline, ADR-0001–0005
 
@@ -38,6 +38,8 @@ Runtime initial release dikunci melalui ADR-0004: Vinext/OpenAI Sites pada Cloud
 - OAuth login dan linking memakai authorization code, PKCE S256, hash `state`, encrypted verifier/nonce, expiry sepuluh menit, one-time consumption, serta safe relative return path.
 - ID token diverifikasi server-side terhadap JWKS Google, signature RS256, issuer, audience, expiry, subject, dan nonce.
 - Login Google baru membuat user/workspace atomik; akun password yang emailnya sama tidak di-auto-merge dan harus di-link setelah login.
+- Login/registrasi Google meminta scope identity-only; Calendar tidak lagi diminta otomatis dan hanya dapat diaktifkan sebagai consent incremental dari Settings.
+- OAuth login dan registrasi memiliki intent server-side terpisah: registrasi kembali ke halaman login tanpa sesi, login tidak membuat akun baru, dan external identity tampil sebagai akun Google tertaut di Settings.
 - Connection menyimpan provider account, granted scopes, encrypted token fields, token expiry, status, sync cursor, last sync, revocation, dan safe error code.
 - Secret dienkripsi AES-256-GCM dengan key dari deployment secret manager.
 - Kontrak provider tersedia untuk OAuth, Calendar, Google Tasks, Drive, dan AI sehingga domain tidak tergantung SDK provider.
@@ -58,7 +60,8 @@ Runtime initial release dikunci melalui ADR-0004: Vinext/OpenAI Sites pada Cloud
 - ADR-0004 menyelesaikan konflik runtime Google Cloud versus Sites/Cloudflare.
 - ADR-0005 mendokumentasikan fallback KDF dan syarat review sebelum public beta.
 - `.env.example` hanya berisi nama variable, tanpa secret.
-- Migration D1 `0002`–`0005` tersedia beserta snapshot dan journal; `0005` melakukan backfill personal workspace/membership legacy tanpa mengubah membership suspended.
+- `npm run google:setup` menulis konfigurasi lokal yang diabaikan Git; `npm run google:check` memvalidasi format tanpa mencetak secret.
+- Migration D1 `0002`–`0007` tersedia beserta snapshot dan journal; `0005` melakukan backfill personal workspace/membership legacy tanpa mengubah membership suspended, `0006` membatasi external calendar identity per workspace, dan `0007` memisahkan intent login/registrasi Google.
 
 ## 3. Kepatuhan terhadap fundamental
 

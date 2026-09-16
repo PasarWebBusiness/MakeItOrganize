@@ -1,22 +1,19 @@
 import { cookies } from 'next/headers';
 import { createGoogleLoginTransaction } from '@/lib/oauth-state';
 import { getGoogleIntegrationConfig } from '@/lib/integration-env';
-import {
-  GoogleOAuthProvider,
-  GOOGLE_CALENDAR_READ_SCOPE,
-  GOOGLE_IDENTITY_SCOPES,
-} from '@/lib/google-oauth';
+import { GoogleOAuthProvider, GOOGLE_IDENTITY_SCOPES } from '@/lib/google-oauth';
 
 const LOGIN_STATE_COOKIE = 'mio_google_login_state';
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   try {
-    const withCalendar = requestUrl.searchParams.get('calendar') === '1';
+    const intent = requestUrl.searchParams.get('intent') === 'register' ? 'register' : 'login';
     const config = getGoogleIntegrationConfig();
     const transaction = await createGoogleLoginTransaction(
-      requestUrl.searchParams.get('returnTo') ?? (withCalendar ? '/?view=calendar' : '/'),
+      requestUrl.searchParams.get('returnTo') ?? '/',
       config.encryptionKey,
+      intent,
     );
     const cookieStore = await cookies();
     cookieStore.set(LOGIN_STATE_COOKIE, transaction.state, {
@@ -33,11 +30,9 @@ export async function GET(request: Request) {
         state: transaction.state,
         nonce: transaction.nonce,
         codeChallenge: transaction.codeChallenge,
-        scopes: withCalendar
-          ? [...GOOGLE_IDENTITY_SCOPES, GOOGLE_CALENDAR_READ_SCOPE]
-          : [...GOOGLE_IDENTITY_SCOPES],
-        accessType: withCalendar ? 'offline' : 'online',
-        prompt: withCalendar ? 'consent' : 'select_account',
+        scopes: [...GOOGLE_IDENTITY_SCOPES],
+        accessType: 'online',
+        prompt: 'select_account',
       }),
       302,
     );

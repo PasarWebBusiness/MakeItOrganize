@@ -20,15 +20,31 @@ function normalizedEmail(tokenSet: OAuthTokenSet): string {
   return email;
 }
 
-export async function resolveOrCreateGoogleUser(tokenSet: OAuthTokenSet): Promise<string> {
-  const email = normalizedEmail(tokenSet);
-  const db = getDb();
-  const [identity] = await db
+async function findGoogleIdentityUser(tokenSet: OAuthTokenSet): Promise<string | undefined> {
+  const [identity] = await getDb()
     .select({ userId: externalIdentities.userId })
     .from(externalIdentities)
     .where(and(eq(externalIdentities.provider, 'google'), eq(externalIdentities.providerSubject, tokenSet.providerAccountId)))
     .limit(1);
-  if (identity) return identity.userId;
+  return identity?.userId;
+}
+
+export async function resolveGoogleUserForLogin(tokenSet: OAuthTokenSet): Promise<string> {
+  const email = normalizedEmail(tokenSet);
+  const db = getDb();
+  const identityUserId = await findGoogleIdentityUser(tokenSet);
+  if (identityUserId) return identityUserId;
+
+  const [emailOwner] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+  if (emailOwner) throw new Error('GOOGLE_ACCOUNT_MUST_BE_LINKED');
+  throw new Error('GOOGLE_ACCOUNT_NOT_REGISTERED');
+}
+
+export async function registerGoogleUser(tokenSet: OAuthTokenSet): Promise<string> {
+  const email = normalizedEmail(tokenSet);
+  const db = getDb();
+  const identityUserId = await findGoogleIdentityUser(tokenSet);
+  if (identityUserId) throw new Error('GOOGLE_ACCOUNT_ALREADY_REGISTERED');
 
   // Never merge an OAuth identity into a password account only because the
   // email text matches. The signed-in user must link it from Settings.
@@ -200,7 +216,8 @@ export type GoogleConnectionSummary = {
 
 export async function getGoogleConnectionSummary(): Promise<GoogleConnectionSummary> {
   const { user, workspaceId } = await requireDefaultWorkspace('read');
-  const [connection] = await getDb()
+  const db = getDb();
+  const [connection] = await db
     .select({
       accountEmail: integrationConnections.accountEmail,
       grantedScopes: integrationConnections.grantedScopes,
@@ -216,8 +233,19 @@ export async function getGoogleConnectionSummary(): Promise<GoogleConnectionSumm
       ),
     )
     .limit(1);
+  const [identity] = await db
+    .select({ email: externalIdentities.email })
+    .from(externalIdentities)
+    .where(and(eq(externalIdentities.userId, user.id), eq(externalIdentities.provider, 'google')))
+    .limit(1);
   if (!connection || connection.status === 'revoked') {
-    return { connected: false, grantedScopes: [], calendarEnabled: false };
+    return {
+      connected: Boolean(identity),
+      accountEmail: identity?.email ?? undefined,
+      grantedScopes: [],
+      status: identity ? 'active' : undefined,
+      calendarEnabled: false,
+    };
   }
   let grantedScopes: string[] = [];
   try {

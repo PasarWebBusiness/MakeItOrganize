@@ -17,6 +17,7 @@
   --accent-foreground: #1d4ed8;
   --destructive: #c2413b;
   --destructive-soft: #fff1f0;
+  --success: #187653;
   --border: #dfe5ec;
   --input: #cbd5e1;
   --ring: #3b82f6;
@@ -45,6 +46,7 @@
   --accent-foreground: #b8d3ff;
   --destructive: #ff9b94;
   --destructive-soft: #3a2224;
+  --success: #71d7ad;
   --border: #2d3a49;
   --input: #435268;
   --ring: #8bb8ff;
@@ -209,10 +211,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .auth-google-option strong, .auth-google-option small { display: block; }
 .auth-google-option strong { color: var(--foreground); font-size: 11px; font-weight: 600; }
 .auth-google-option small { margin-top: 3px; color: var(--muted-foreground); font-size: 9px; line-height: 1.45; }
-.auth-divider, .auth-error, .auth-link-small, .auth-footer-link, .auth-terms, .auth-back-link { font-size: 12px; }
+.auth-google-note { margin: 10px 0 0; color: var(--muted-foreground); font-size: 11px; line-height: 1.55; text-align: center; }
+.auth-divider, .auth-error, .auth-success, .auth-link-small, .auth-footer-link, .auth-terms, .auth-back-link { font-size: 12px; }
 .auth-field { gap: 7px; font-size: 14px; }
 .auth-field input { min-height: 48px; font-family: var(--font-poppins); font-size: 16px; background: var(--background); color: var(--foreground); }
 .auth-error, .overdue-pill, .overdue-badge { background: var(--destructive-soft); color: var(--destructive); border-color: color-mix(in srgb, var(--destructive) 30%, var(--border)); }
+.auth-success { padding: 11px 13px; border: 1px solid color-mix(in srgb, var(--success) 32%, var(--border)); border-radius: 10px; background: color-mix(in srgb, var(--success) 12%, var(--card)); color: var(--success); }
 .modal-overlay { padding: 20px; background: rgb(15 23 42 / 52%); backdrop-filter: blur(5px); }
 .modal-card { width: min(540px, 100%); max-height: calc(100dvh - 40px); overflow-y: auto; border-radius: 18px; }
 .modal-card, .context-menu { background: var(--popover); color: var(--popover-foreground); box-shadow: var(--shadow-md); }
@@ -227,10 +231,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 select { appearance: none; padding-right: 42px !important; background-image: linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%), linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; border: 1px solid var(--border); border-radius: 11px; }
 select:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); }
 select:focus-visible { border-color: var(--ring); }
-[data-slot='switch'] { width: 46px !important; height: 26px !important; padding: 3px; background: var(--input) !important; border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent) !important; box-shadow: inset 0 1px 2px rgb(15 23 42 / 12%); }
+[data-slot='switch'] { position: relative; width: 46px !important; height: 26px !important; padding: 0 !important; background: var(--input) !important; border: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent) !important; box-shadow: inset 0 1px 2px rgb(15 23 42 / 12%); }
 [data-slot='switch'][data-checked] { background: var(--primary) !important; border-color: var(--primary) !important; }
-[data-slot='switch-thumb'] { width: 18px !important; height: 18px !important; background: #fff !important; box-shadow: 0 1px 4px rgb(15 23 42 / 28%); }
-[data-slot='switch'][data-checked] [data-slot='switch-thumb'] { transform: translateX(18px) !important; }
+[data-slot='switch-thumb'] { position: absolute; top: 3px; left: 3px; width: 18px !important; height: 18px !important; transform: translateX(0) !important; background: #fff !important; box-shadow: 0 1px 4px rgb(15 23 42 / 28%); }
+[data-slot='switch'][data-checked] [data-slot='switch-thumb'] { transform: translateX(20px) !important; }
 [data-slot='dialog-content'].create-dialog { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; border-radius: 20px; padding: 24px; background: var(--popover); box-shadow: var(--shadow-md); }
 .canvas-hint { min-height: 48px; display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 18px; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 13px; line-height: 1.5; }
 .canvas-hint svg { flex: 0 0 auto; color: var(--primary); }

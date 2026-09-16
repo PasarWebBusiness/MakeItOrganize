@@ -86,6 +86,7 @@ export const oauthTransactions = sqliteTable('oauth_states', {
 
 export const oauthLoginTransactions = sqliteTable('oauth_login_states', {
   id: text('id').primaryKey(),
+  intent: text('intent', { enum: ['login', 'register'] }).notNull().default('login'),
   stateHash: text('state_hash').notNull(),
   codeVerifierCiphertext: text('code_verifier_ciphertext').notNull(),
   nonceCiphertext: text('nonce_ciphertext').notNull(),

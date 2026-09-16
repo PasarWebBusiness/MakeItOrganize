@@ -12,7 +12,6 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [connectCalendar, setConnectCalendar] = useState(true);
 
   const handleSubmit = async (event: React.SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -71,11 +70,7 @@ export default function RegisterPage() {
       <button
         className="google-btn"
         type="button"
-        onClick={() => window.location.assign(
-          connectCalendar
-            ? '/api/auth/google/start?calendar=1&returnTo=/?view=calendar'
-            : '/api/auth/google/start?returnTo=/',
-        )}
+        onClick={() => window.location.assign('/api/auth/google/start?intent=register')}
         aria-label="Daftar dengan Google"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -86,22 +81,9 @@ export default function RegisterPage() {
         </svg>
         Daftar dengan Google
       </button>
-      <label
-        className="auth-google-option"
-        htmlFor="register-connect-calendar"
-        aria-label="Sesuaikan Google Calendar setelah daftar"
-      >
-        <input
-          id="register-connect-calendar"
-          type="checkbox"
-          checked={connectCalendar}
-          onChange={(event) => setConnectCalendar(event.target.checked)}
-        />
-        <span>
-          <strong>Sesuaikan Google Calendar setelah daftar</strong>
-          <small>Meminta akses baca kalender dari akun Google yang kamu pilih.</small>
-        </span>
-      </label>
+      <p className="auth-google-note">
+        Pendaftaran hanya meminta nama dan email. Izin Calendar dapat diaktifkan terpisah dari Settings.
+      </p>
 
       <div className="auth-divider">
         <span>atau daftar dengan email</span>
