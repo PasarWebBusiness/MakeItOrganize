@@ -193,3 +193,5 @@ export class GoogleOAuthProvider implements OAuthProvider {
 
 export const GOOGLE_IDENTITY_SCOPES = ['openid', 'email', 'profile'] as const;
 export const GOOGLE_CALENDAR_READ_SCOPE = 'https://www.googleapis.com/auth/calendar.events.readonly';
+export const GOOGLE_TASKS_READ_SCOPE = 'https://www.googleapis.com/auth/tasks.readonly';
+export const GOOGLE_DRIVE_READ_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';

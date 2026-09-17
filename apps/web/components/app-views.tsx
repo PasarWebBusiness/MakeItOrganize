@@ -40,6 +40,13 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -56,6 +63,7 @@ import type {
   CanvasDocument,
   Course,
   FileItem,
+  DriveFileCandidate,
   Note,
   Task,
   ViewKey,
@@ -111,12 +119,13 @@ function TaskRow({
       <Checkbox
         checked={task.status === 'done'}
         onCheckedChange={() => onToggle(task.id)}
+        disabled={task.readOnly}
         aria-label={`Tandai ${task.title} selesai`}
       />
       <span className={`course-dot ${courseTone[task.course] || 'green'}`} />
       <div className="task-copy">
         <strong>{task.title}</strong>
-        <p>{task.course}</p>
+        <p>{task.externalProvider === 'google' ? `Google Tasks · ${task.externalContainer || 'Daftar tugas'}` : task.course}</p>
       </div>
       {overdue && !compact && (
         <span className="overdue-pill">
@@ -310,6 +319,7 @@ export function CalendarView({
   googleConnection?: {
     connected: boolean;
     calendarEnabled: boolean;
+    tasksEnabled: boolean;
     accountEmail?: string;
     lastSyncedAt?: string;
   };
@@ -705,6 +715,8 @@ export function TasksView({
   onEdit,
   onDelete,
   onAdd,
+  googleConnection,
+  onGoogleSync,
 }: {
   tasks: Task[];
   courses: { name: string }[];
@@ -713,12 +725,16 @@ export function TasksView({
   onEdit: (id: string, patch: Partial<Task>) => void;
   onDelete: (id: string) => void;
   onAdd: () => void;
+  googleConnection?: { connected: boolean; tasksEnabled: boolean; accountEmail?: string; lastSyncedAt?: string };
+  onGoogleSync: () => Promise<{ ok: boolean; synced: number; removed: number; skipped: number }>;
 }) {
   const [filter, setFilter] = useState('Semua');
   const [courseFilter, setCourseFilter] = useState('');
   const [sort, setSort] = useState<'due' | 'priority' | 'created'>('due');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [syncingGoogle, setSyncingGoogle] = useState(false);
+  const [syncNotice, setSyncNotice] = useState('');
 
   const priorityOrder = { high: 0, medium: 1, low: 2 };
 
@@ -759,6 +775,19 @@ export function TasksView({
     setEditingId(null);
   };
 
+  const syncGoogle = async () => {
+    setSyncingGoogle(true);
+    setSyncNotice('Mengambil Google Tasks...');
+    const result = await onGoogleSync();
+    if (result.ok) {
+      setSyncNotice(`${result.synced} task disinkronkan, ${result.removed} dihapus.`);
+      window.location.reload();
+      return;
+    }
+    setSyncingGoogle(false);
+    setSyncNotice('Sinkronisasi Google Tasks gagal. Periksa koneksi di Settings.');
+  };
+
   return (
     <section className="panel content-panel">
       <div className="content-toolbar">
@@ -776,6 +805,11 @@ export function TasksView({
           ))}
         </div>
         <div className="toolbar-right">
+          {googleConnection?.tasksEnabled ? (
+            <Button variant="outline" onClick={() => void syncGoogle()} disabled={syncingGoogle}>
+              <Cloud size={16} /> {syncingGoogle ? 'Menyinkronkan…' : 'Sinkronkan Google Tasks'}
+            </Button>
+          ) : null}
           <select
             className="sort-select"
             value={courseFilter}
@@ -802,6 +836,7 @@ export function TasksView({
           </Button>
         </div>
       </div>
+      {syncNotice && <output className="integration-notice">{syncNotice}</output>}
       <div className="full-task-list">
         {visible.map((task) => {
           const overdue = isOverdue(task.dueDate) && task.status !== 'done';
@@ -813,9 +848,10 @@ export function TasksView({
               <Checkbox
                 checked={task.status === 'done'}
                 onCheckedChange={() => onToggle(task.id)}
+                disabled={task.readOnly}
               />
               <span className={`course-badge ${courseTone[task.course] || 'green'}`}>
-                {task.course}
+                {task.externalProvider === 'google' ? task.externalContainer || 'Google Tasks' : task.course}
               </span>
               <div>
                 {editingId === task.id ? (
@@ -830,7 +866,7 @@ export function TasksView({
                     }}
                   />
                 ) : (
-                  <strong>{task.title}</strong>
+                  <strong>{task.title}{task.readOnly ? ' · Google Tasks' : ''}</strong>
                 )}
                 <small>
                   {task.status === 'in_progress'
@@ -848,7 +884,7 @@ export function TasksView({
               <time className={overdue ? 'overdue-time' : ''}>
                 {overdue && <AlertTriangle size={9} />} {task.due}
               </time>
-              <div className="task-actions">
+              {!task.readOnly && <div className="task-actions">
                 <button
                   aria-label={`Edit ${task.title}`}
                   onClick={() => startEdit(task)}
@@ -864,7 +900,7 @@ export function TasksView({
                 >
                   <Trash2 size={14} />
                 </button>
-              </div>
+              </div>}
             </div>
           );
         })}
@@ -1048,6 +1084,7 @@ export function CoursesView({
                         <Checkbox
                           checked={t.status === 'done'}
                           onCheckedChange={() => onToggleTask(t.id)}
+                          disabled={t.readOnly}
                           aria-label={t.title}
                         />
                         <span className={`course-dot ${courseTone[t.course] || 'green'}`} />
@@ -1087,7 +1124,7 @@ export function CoursesView({
               ) : (
                 courseTasks.map((t) => (
                   <div key={t.id} className={`task-row ${t.status === 'done' ? 'is-done' : ''}`}>
-                    <Checkbox checked={t.status === 'done'} onCheckedChange={() => onToggleTask(t.id)} aria-label={t.title} />
+                    <Checkbox checked={t.status === 'done'} onCheckedChange={() => onToggleTask(t.id)} disabled={t.readOnly} aria-label={t.title} />
                     <span className={`course-dot ${courseTone[t.course] || 'green'}`} />
                     <div className="task-copy">
                       <strong>{t.title}</strong>
@@ -1324,6 +1361,9 @@ export function FilesView({
   onDelete,
   onRename,
   onUpload,
+  googleConnection,
+  onDriveList,
+  onDriveImport,
 }: {
   files: FileItem[];
   query: string;
@@ -1331,6 +1371,9 @@ export function FilesView({
   onDelete: (id: string) => void | Promise<void>;
   onRename: (id: string, name: string) => void | Promise<void>;
   onUpload: (files: File[], courseName: string) => Promise<void>;
+  googleConnection?: { connected: boolean; driveEnabled: boolean; accountEmail?: string };
+  onDriveList: (pageToken?: string) => Promise<{ files: DriveFileCandidate[]; nextPageToken?: string; error?: string }>;
+  onDriveImport: (fileId: string, courseName: string) => Promise<boolean>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [courseFilter, setCourseFilter] = useState('');
@@ -1338,6 +1381,12 @@ export function FilesView({
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [driveOpen, setDriveOpen] = useState(false);
+  const [driveFiles, setDriveFiles] = useState<DriveFileCandidate[]>([]);
+  const [drivePageToken, setDrivePageToken] = useState<string | undefined>();
+  const [driveLoading, setDriveLoading] = useState(false);
+  const [driveImporting, setDriveImporting] = useState<string | null>(null);
+  const [driveNotice, setDriveNotice] = useState('');
 
   const visible = files
     .filter((f) => {
@@ -1358,6 +1407,33 @@ export function FilesView({
     const selected = Array.from(event.target.files || []);
     if (selected.length) await onUpload(selected, courseFilter || 'Belum diatur');
     event.target.value = '';
+  };
+
+  const loadDrive = async (append = false) => {
+    setDriveLoading(true);
+    setDriveNotice('');
+    try {
+      const result = await onDriveList(append ? drivePageToken : undefined);
+      setDriveFiles((current) => append ? [...current, ...result.files.filter((file) => !current.some((item) => item.id === file.id))] : result.files);
+      setDrivePageToken(result.nextPageToken);
+      if (result.error) setDriveNotice(result.error);
+      else if (!append && result.files.length === 0) setDriveNotice('Tidak ada file Drive yang dapat ditampilkan.');
+    } finally {
+      setDriveLoading(false);
+    }
+  };
+
+  const openDrive = () => {
+    setDriveOpen(true);
+    void loadDrive(false);
+  };
+
+  const importDrive = async (file: DriveFileCandidate) => {
+    setDriveImporting(file.id);
+    setDriveNotice('');
+    const success = await onDriveImport(file.id, courseFilter || 'Belum diatur');
+    setDriveImporting(null);
+    setDriveNotice(success ? `${file.name} berhasil diimpor ke workspace.` : `Gagal mengimpor ${file.name}.`);
   };
 
   const openContext = (e: React.MouseEvent, id: string) => {
@@ -1435,6 +1511,11 @@ export function FilesView({
               <option value="name">Urutkan: Nama</option>
               <option value="size">Urutkan: Ukuran</option>
             </select>
+            {googleConnection?.driveEnabled && (
+              <Button variant="outline" onClick={openDrive}>
+                <Cloud size={16} /> Impor dari Drive
+              </Button>
+            )}
             <Button onClick={() => inputRef.current?.click()}>
               <Upload size={16} /> Upload
             </Button>
@@ -1506,6 +1587,49 @@ export function FilesView({
           )}
         </div>
       </section>
+      <Dialog open={driveOpen} onOpenChange={setDriveOpen}>
+        <DialogContent className="drive-import-dialog">
+          <DialogHeader>
+            <DialogTitle>Impor dari Google Drive</DialogTitle>
+            <DialogDescription>
+              Pilih file untuk disalin ke workspace{courseFilter ? ` dan ditautkan ke ${courseFilter}` : ''}. File asli di Drive tidak diubah.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="drive-file-list" aria-live="polite">
+            {driveFiles.map((file) => (
+              <div className="drive-file-row" key={file.id}>
+                <span className="drive-file-icon"><File size={19} /></span>
+                <div>
+                  <strong>{file.name}</strong>
+                  <small>
+                    {file.mimeType} · {file.size === undefined ? 'Ukuran tidak tersedia' : `${Math.max(1, Math.round(file.size / 1024))} KB`}
+                  </small>
+                  {!file.supported && (
+                    <small className="drive-file-warning">
+                      {!file.canDownload ? 'File tidak mengizinkan download.' : 'Format atau ukuran file belum didukung.'}
+                    </small>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!file.supported || driveImporting !== null}
+                  onClick={() => void importDrive(file)}
+                >
+                  {driveImporting === file.id ? 'Mengimpor…' : 'Impor'}
+                </Button>
+              </div>
+            ))}
+            {driveLoading && <p className="drive-file-status">Memuat file Google Drive…</p>}
+            {driveNotice && <p className="drive-file-status">{driveNotice}</p>}
+          </div>
+          {drivePageToken && (
+            <Button variant="outline" disabled={driveLoading} onClick={() => void loadDrive(true)}>
+              {driveLoading ? 'Memuat…' : 'Muat lebih banyak'}
+            </Button>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -2134,6 +2258,8 @@ export function SettingsView({
     grantedScopes: string[];
     status?: 'active' | 'reauth_required' | 'revoked' | 'error';
     calendarEnabled: boolean;
+    tasksEnabled: boolean;
+    driveEnabled: boolean;
     lastSyncedAt?: string;
   };
 }) {
@@ -2144,6 +2270,9 @@ export function SettingsView({
     const messages: Record<string, { tone: 'success' | 'error'; text: string }> = {
       connected: { tone: 'success', text: 'Akun Google berhasil dihubungkan.' },
       calendar_connected: { tone: 'success', text: 'Izin Google Calendar berhasil diaktifkan.' },
+      tasks_connected: { tone: 'success', text: 'Izin Google Tasks berhasil diaktifkan. Sinkronkan dari halaman Tugas.' },
+      drive_connected: { tone: 'success', text: 'Izin Google Drive berhasil diaktifkan. Impor file dari halaman File.' },
+      services_connected: { tone: 'success', text: 'Layanan Google yang dipilih berhasil diaktifkan.' },
       cancelled: { tone: 'error', text: 'Proses menghubungkan Google dibatalkan.' },
       invalid_state: { tone: 'error', text: 'Sesi OAuth tidak valid atau sudah kedaluwarsa.' },
       unavailable: { tone: 'error', text: 'Google OAuth belum dikonfigurasi pada environment ini.' },
@@ -2271,8 +2400,12 @@ export function SettingsView({
                 <span className={googleConnection?.calendarEnabled ? 'ready' : ''}>
                   {googleConnection?.calendarEnabled ? 'Calendar aktif' : 'Calendar berikutnya'}
                 </span>
-                <span>Tasks berikutnya</span>
-                <span>Drive berikutnya</span>
+                <span className={googleConnection?.tasksEnabled ? 'ready' : ''}>
+                  {googleConnection?.tasksEnabled ? 'Tasks aktif' : 'Tasks berikutnya'}
+                </span>
+                <span className={googleConnection?.driveEnabled ? 'ready' : ''}>
+                  {googleConnection?.driveEnabled ? 'Drive aktif' : 'Drive berikutnya'}
+                </span>
               </div>
               {googleConnection?.connected && !googleConnection.calendarEnabled && (
                 <button
@@ -2283,6 +2416,27 @@ export function SettingsView({
                   Aktifkan Google Calendar
                 </button>
               )}
+              {googleConnection?.connected && !googleConnection.tasksEnabled && (
+                <button
+                  type="button"
+                  className="integration-action calendar-consent-action"
+                  onClick={() => window.location.assign('/api/integrations/google/connect?feature=tasks&returnTo=/?view=settings')}
+                >
+                  Aktifkan Google Tasks
+                </button>
+              )}
+              {googleConnection?.connected && !googleConnection.driveEnabled && (
+                <button
+                  type="button"
+                  className="integration-action calendar-consent-action"
+                  onClick={() => window.location.assign('/api/integrations/google/connect?feature=drive&returnTo=/?view=settings')}
+                >
+                  Aktifkan Google Drive
+                </button>
+              )}
+              <p className="integration-scope-note">
+                Drive digunakan secara read-only sebagai sumber impor. MakeItOrganize tidak mengubah atau menghapus file asli.
+              </p>
             </section>
             <section className="panel settings-card">
               <span className="section-kicker">KEAMANAN</span>

@@ -26,6 +26,9 @@ export type Task = {
   status: TaskStatus;
   reminder?: string;
   attachments?: string[];
+  externalProvider?: 'google';
+  externalContainer?: string;
+  readOnly?: boolean;
 };
 
 export type Note = {
@@ -71,6 +74,17 @@ export type CanvasDocument = {
   course: string;
   strokes: string;
   updated: string;
+};
+
+export type DriveFileCandidate = {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: number;
+  modifiedTime?: string;
+  webViewLink?: string;
+  canDownload: boolean;
+  supported: boolean;
 };
 
 export type CalendarEvent = {

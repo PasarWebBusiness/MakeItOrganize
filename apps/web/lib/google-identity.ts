@@ -10,7 +10,7 @@ import {
 import { requireDefaultWorkspace } from '@/lib/authorization';
 import { decryptIntegrationSecret, encryptIntegrationSecret } from '@/lib/integration-crypto';
 import { getGoogleIntegrationConfig } from '@/lib/integration-env';
-import { GoogleOAuthProvider, GOOGLE_CALENDAR_READ_SCOPE } from '@/lib/google-oauth';
+import { GoogleOAuthProvider, GOOGLE_CALENDAR_READ_SCOPE, GOOGLE_DRIVE_READ_SCOPE, GOOGLE_TASKS_READ_SCOPE } from '@/lib/google-oauth';
 import { ProviderError, type OAuthTokenSet } from '@/lib/integration-providers';
 import { and, eq } from 'drizzle-orm';
 
@@ -211,6 +211,8 @@ export type GoogleConnectionSummary = {
   grantedScopes: string[];
   status?: 'active' | 'reauth_required' | 'revoked' | 'error';
   calendarEnabled: boolean;
+  tasksEnabled: boolean;
+  driveEnabled: boolean;
   lastSyncedAt?: string;
 };
 
@@ -245,6 +247,8 @@ export async function getGoogleConnectionSummary(): Promise<GoogleConnectionSumm
       grantedScopes: [],
       status: identity ? 'active' : undefined,
       calendarEnabled: false,
+      tasksEnabled: false,
+      driveEnabled: false,
     };
   }
   let grantedScopes: string[] = [];
@@ -260,11 +264,13 @@ export async function getGoogleConnectionSummary(): Promise<GoogleConnectionSumm
     grantedScopes,
     status: connection.status,
     calendarEnabled: grantedScopes.includes(GOOGLE_CALENDAR_READ_SCOPE),
+    tasksEnabled: grantedScopes.includes(GOOGLE_TASKS_READ_SCOPE),
+    driveEnabled: grantedScopes.includes(GOOGLE_DRIVE_READ_SCOPE),
     lastSyncedAt: connection.lastSyncedAt?.toISOString(),
   };
 }
 
-export async function getGoogleCalendarAccessToken(userId: string, workspaceId: string) {
+async function getGoogleAccessToken(userId: string, workspaceId: string, requiredScope: string, featureName: string) {
   const db = getDb();
   const connections = await db
     .select()
@@ -278,13 +284,13 @@ export async function getGoogleCalendarAccessToken(userId: string, workspaceId: 
   const connection = connections.find((candidate) => {
     try {
       const scopes: unknown = JSON.parse(candidate.grantedScopes);
-      return Array.isArray(scopes) && scopes.includes(GOOGLE_CALENDAR_READ_SCOPE);
+      return Array.isArray(scopes) && scopes.includes(requiredScope);
     } catch {
       return false;
     }
   });
   if (!connection) {
-    throw new ProviderError('scope_missing', 'Google Calendar belum diizinkan', false);
+    throw new ProviderError('scope_missing', `Google ${featureName} belum diizinkan`, false);
   }
 
   const config = getGoogleIntegrationConfig();
@@ -326,4 +332,16 @@ export async function getGoogleCalendarAccessToken(userId: string, workspaceId: 
     }).where(eq(integrationConnections.id, connection.id));
     throw error;
   }
+}
+
+export function getGoogleCalendarAccessToken(userId: string, workspaceId: string) {
+  return getGoogleAccessToken(userId, workspaceId, GOOGLE_CALENDAR_READ_SCOPE, 'Calendar');
+}
+
+export function getGoogleTasksAccessToken(userId: string, workspaceId: string) {
+  return getGoogleAccessToken(userId, workspaceId, GOOGLE_TASKS_READ_SCOPE, 'Tasks');
+}
+
+export function getGoogleDriveAccessToken(userId: string, workspaceId: string) {
+  return getGoogleAccessToken(userId, workspaceId, GOOGLE_DRIVE_READ_SCOPE, 'Drive');
 }

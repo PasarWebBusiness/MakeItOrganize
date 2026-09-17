@@ -1,11 +1,11 @@
 # Status Implementasi dan Traceability
 
-**Tanggal audit:** 10 September 2026
+**Tanggal audit:** 17 September 2026
 **Baseline:** `EarlyBrief.md`, PRD v1.0, SRS v1.0, dan dokumen fundamental pada direktori `docs/`.
 
 ## Ringkasan
 
-Implementasi saat ini adalah private alpha dengan autentikasi email/password dan Google, workspace personal, penyimpanan domain awal di Cloudflare D1, serta shell UI responsif. Tahap pertama Google OAuth sudah aktif pada level kode; pengujian end-to-end masih memerlukan credential environment. Implementasi **belum memenuhi seluruh scope full initial release**. Sinkronisasi Calendar/Tasks/Drive, penyimpanan file R2, AI gateway/RAG/agent, audit menyeluruh, notifikasi delivery, dan sejumlah kontrol keamanan produksi masih memerlukan backend lanjutan.
+Implementasi saat ini adalah private alpha dengan autentikasi email/password dan Google, workspace personal, D1/R2, Google Calendar read-only, Google Tasks read-only, Google Drive read-only import, serta shell UI responsif. Pengujian provider end-to-end masih memerlukan credential environment. Implementasi **belum memenuhi seluruh scope full initial release**. Sinkronisasi dua arah, Drive native-file/Picker, AI gateway/RAG/agent, delivery notifikasi, dan sejumlah kontrol keamanan produksi masih memerlukan backend lanjutan.
 
 Label pada dokumen ini:
 
@@ -20,9 +20,9 @@ Label pada dokumen ini:
 | Authentication | AUTH-002, AUTH-005 | AUTH-001, AUTH-003, AUTH-006–AUTH-008 | AUTH-004 | Registrasi/login/logout lokal dan Google aktif pada level kode. OAuth memakai state, PKCE, nonce, verifikasi ID token, encrypted connection token, serta link dari Settings. Unlink menunggu step-up auth; email verification lokal, reset token, rotasi/revoke-all session, dan E2E credential test belum lengkap. |
 | Workspace & authorization | — | WS-001–WS-003 | WS-004–WS-007 | Registrasi membuat personal workspace dan membership owner. Isolasi task menggunakan workspace pengguna, tetapi kebijakan lintas seluruh resource, kolaborasi, invite, serta transfer ownership belum lengkap. |
 | Courses | CRS-003 | CRS-001, CRS-002 | — | Course memiliki create/edit/soft-archive persisten dan dapat dihubungkan ke task/event. CRUD semester dan hubungan ke seluruh jenis resource masih belum lengkap. |
-| Tasks | — | TASK-001–TASK-004 | — | Create, rename, toggle, delete, filter, dan pengelompokan tersedia; relasi/metadata, audit, validasi, serta seluruh acceptance criteria belum lengkap. |
+| Tasks | — | TASK-001–TASK-004 | — | Task lokal persisten; Google Tasks manual pull read-only memakai consent incremental, pagination bound, external mapping idempotent, soft-delete, audit, dan mutation lock. Two-way conflict policy belum tersedia. |
 | Calendar | — | CAL-001–CAL-004, CAL-006 | CAL-005, CAL-007, CAL-008 | Event lokal persisten dan tampilan bulan/minggu/tahun tersedia. Google Calendar memiliki incremental consent read-only, refresh token server-side, manual initial/incremental pull, cursor recovery, dan workspace-scoped upsert. Push/two-way conflict policy, webhook, pilihan kalender, reminder, serta background reconciliation belum ada. |
-| Files | — | FILE-001, FILE-004, FILE-007 | FILE-002, FILE-003, FILE-005, FILE-006, FILE-008–FILE-010 | File manager interaktif masih memakai state lokal. Upload object storage, signed URL, hash, scan, version restore, delete lifecycle, dan retention belum ada. |
+| Files | — | FILE-001, FILE-004, FILE-005, FILE-007, FILE-010 | FILE-002, FILE-003, FILE-006, FILE-008, FILE-009 | Upload lokal dan import Google Drive menyimpan binary private di R2 serta metadata D1. Import Drive memakai allowlist MIME, batas 25 MB, checksum, external mapping, immutable version, dan audit. Signed download/preview, scan/quarantine, restore UI, folder lifecycle, retention, dan native Google Docs link/export belum lengkap. |
 | Notes | — | NOTE-001, NOTE-003 | NOTE-002 | Editor rich-text tersedia di klien; sanitization, autosave persisten, versioning, dan permission enforcement belum lengkap. |
 | Canvas | — | CAN-001, CAN-002 | CAN-003 | Pen, highlighter, eraser, undo/redo tersedia. Zoom/pan, autosave, revision, dan export PDF belum lengkap. |
 | Search | — | SRCH-002 | SRCH-001 | Filter per view tersedia, tetapi pencarian global terotorisasi belum ada. |
@@ -43,8 +43,10 @@ Label pada dokumen ini:
 - Calendar D1 mencakup create, edit, delete, validasi tanggal/waktu, agenda, month view, dan relasi course.
 - Registrasi kini membuat membership owner untuk personal workspace dalam transaksi yang sama.
 - Akun legacy tanpa membership tidak lagi membuat halaman utama HTTP 500: migration `0005` membackfill membership owner dan authorization boundary memulihkan state yang hilang secara idempotent tanpa mengaktifkan kembali membership suspended.
-- Google OAuth login/registrasi serta koneksi workspace telah diimplementasikan; Tasks, Drive, dan AI action tetap ditandai belum aktif sampai scope serta adapter masing-masing tersedia.
+- Google OAuth login/registrasi serta koneksi workspace telah diimplementasikan; Calendar, Tasks, dan Drive meminta scope masing-masing secara incremental. AI action tetap belum aktif sampai gateway dan authorization executor tersedia.
 - Google Calendar tahap 2A tersedia sebagai manual read-only pull dari kalender primer dengan incremental scope, refresh token, pagination bound, sync cursor, 410 recovery, audit event, dan tenant-scoped external ID. Fitur ini belum merupakan two-way sync.
+- Google Tasks tahap 2B tersedia sebagai manual read-only pull dengan scope minimum, task-list/task pagination bound, idempotent external ID, soft-delete, audit event, dan penguncian mutation lokal.
+- Google Drive tahap 3A tersedia sebagai manual read-only list/import ke R2 dengan pagination, validasi download/MIME/ukuran, SHA-256 checksum, pemetaan eksternal idempotent, versioning, serta audit. Restricted-scope verification dan end-to-end credential test tetap menjadi gate production.
 - Login dan registrasi Google menyediakan pilihan eksplisit untuk menautkan Calendar read-only dari akun yang sama dan menjalankan initial sync setelah callback; login identity-only tetap tersedia ketika opsi dimatikan.
 - Authorization server terpusat memeriksa membership aktif dan role capability sebelum operasi workspace.
 - Session token disimpan sebagai hash SHA-256; token mentah hanya berada pada cookie HttpOnly.
@@ -55,7 +57,7 @@ Label pada dokumen ini:
 
 ## Integration readiness gate
 
-Fondasi kode dan **adapter Google OAuth tahap 1** sudah tersedia. Calendar, Tasks, Drive, dan Gemini siap dikerjakan secara incremental, tetapi belum menjadi connector production. Sebelum public launch masih wajib tersedia secret deployment, token refresh/revocation dengan step-up auth, webhook verification, worker/retry runner, file upload security, AI authorization executor, persistent audit emission, serta integration/E2E security tests.
+Fondasi kode, **Google OAuth tahap 1**, **Calendar tahap 2A**, **Tasks tahap 2B**, dan **Drive tahap 3A** tersedia. Gemini siap dikerjakan secara incremental, tetapi connector Google belum production-ready. Sebelum public launch masih wajib tersedia secret deployment, token revocation dengan step-up auth, restricted-scope verification, two-way conflict policy, webhook/reconciliation runner, AI authorization executor, serta integration/E2E security tests.
 
 ## Bukti quality gate
 
@@ -76,7 +78,7 @@ Urutan pekerjaan backend yang disarankan mengikuti `ROADMAP.md`:
 
 1. Lengkapi identity security: email verification, rate limit, password reset token, Google OAuth/linking, session rotation/revocation, dan CSRF protection.
 2. Terapkan authorization policy terpusat untuk seluruh resource dan selesaikan membership/invite/ownership lifecycle.
-3. Persistensikan courses, calendar, files, notes, canvas, audit, dan notifications; tambahkan R2/GCS lifecycle serta Google Calendar sync.
+3. Lengkapi lifecycle file R2, signed download/preview, scan/quarantine, notifikasi materialized, serta sinkronisasi Calendar/Tasks dua arah.
 4. Bangun AI gateway server-side, indexing/RAG, permission filter, approval workflow, mutation transaction, dan audit trail.
 5. Tambahkan unit, integration, E2E, accessibility, security, load, backup/restore, dan failure-recovery testing sesuai `TEST_STRATEGY.md`.
 6. Tutup keputusan terbuka di `docs/README.md` dan ADR sebelum production deployment.

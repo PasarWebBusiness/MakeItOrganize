@@ -80,6 +80,9 @@ export default async function HomePage() {
     dueDate: task.dueAt ? new Date(task.dueAt).toISOString().split('T')[0] : undefined,
     priority: priorities.has(task.priority as Priority) ? (task.priority as Priority) : 'medium',
     status: statuses.has(task.status as TaskStatus) ? (task.status as TaskStatus) : 'todo',
+    externalProvider: task.externalProvider === 'google' ? 'google' : undefined,
+    externalContainer: task.externalContainer || undefined,
+    readOnly: task.externalProvider === 'google',
   }));
 
   const mappedCourses: Course[] = dbCourses.map((course) => ({

@@ -73,7 +73,10 @@ export interface CalendarProvider {
 }
 
 export interface TasksProvider {
-  listTaskLists(accessToken: string): Promise<Array<{ id: string; title: string }>>;
+  listTaskLists(input: {
+    accessToken: string;
+    pageToken?: string;
+  }): Promise<{ taskLists: Array<{ id: string; title: string }>; nextPageToken?: string }>;
   listTasks(input: {
     accessToken: string;
     taskListId: string;
@@ -86,6 +89,10 @@ export interface DriveProvider {
     accessToken: string;
     pageToken?: string;
   }): Promise<{ files: unknown[]; nextPageToken?: string }>;
+  getFile(input: {
+    accessToken: string;
+    fileId: string;
+  }): Promise<unknown>;
   downloadFile(input: {
     accessToken: string;
     fileId: string;

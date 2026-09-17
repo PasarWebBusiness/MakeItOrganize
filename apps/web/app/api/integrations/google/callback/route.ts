@@ -1,5 +1,5 @@
 import { getGoogleIntegrationConfig } from '@/lib/integration-env';
-import { GoogleOAuthProvider, GOOGLE_CALENDAR_READ_SCOPE } from '@/lib/google-oauth';
+import { GoogleOAuthProvider, GOOGLE_CALENDAR_READ_SCOPE, GOOGLE_DRIVE_READ_SCOPE, GOOGLE_TASKS_READ_SCOPE } from '@/lib/google-oauth';
 import { saveGoogleConnection } from '@/lib/google-identity';
 import { consumeGoogleOAuthTransaction } from '@/lib/oauth-state';
 
@@ -29,10 +29,20 @@ export async function GET(request: Request) {
     const { user } = await requireWorkspaceAccess(transaction.workspaceId, 'manage_integrations');
     await saveGoogleConnection(user.id, transaction.workspaceId, tokenSet, config.encryptionKey);
     const returnUrl = new URL(transaction.returnTo, requestUrl.origin);
-    returnUrl.searchParams.set(
-      'google',
-      tokenSet.scopes.includes(GOOGLE_CALENDAR_READ_SCOPE) ? 'calendar_connected' : 'connected',
-    );
+    const hasTasks = tokenSet.scopes.includes(GOOGLE_TASKS_READ_SCOPE);
+    const hasCalendar = tokenSet.scopes.includes(GOOGLE_CALENDAR_READ_SCOPE);
+    const hasDrive = tokenSet.scopes.includes(GOOGLE_DRIVE_READ_SCOPE);
+    const enabledCount = [hasTasks, hasCalendar, hasDrive].filter(Boolean).length;
+    const status = enabledCount > 1
+      ? 'services_connected'
+      : hasDrive
+        ? 'drive_connected'
+        : hasTasks
+        ? 'tasks_connected'
+        : hasCalendar
+          ? 'calendar_connected'
+          : 'connected';
+    returnUrl.searchParams.set('google', status);
     return Response.redirect(returnUrl, 302);
   } catch {
     return settingsRedirect(requestUrl.origin, 'failed');

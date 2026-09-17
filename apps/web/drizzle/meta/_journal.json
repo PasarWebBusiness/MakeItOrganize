@@ -57,6 +57,20 @@
       "when": 1789576946261,
       "tag": "0007_separate_google_auth_intent",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789616276818,
+      "tag": "0008_complex_taskmaster",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1789617541659,
+      "tag": "0009_whole_morph",
+      "breakpoints": true
     }
   ]
 }

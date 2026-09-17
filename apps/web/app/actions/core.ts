@@ -317,10 +317,12 @@ export async function fetchUserTasks() {
       status: tasks.status,
       courseName: courses.name,
       createdAt: tasks.createdAt,
+      externalProvider: tasks.externalProvider,
+      externalContainer: tasks.externalContainer,
     })
     .from(tasks)
     .leftJoin(courses, eq(tasks.courseId, courses.id))
-    .where(eq(tasks.workspaceId, workspaceId))
+    .where(and(eq(tasks.workspaceId, workspaceId), isNull(tasks.deletedAt)))
     .orderBy(desc(tasks.createdAt));
 }
 
@@ -367,7 +369,7 @@ export async function toggleTaskAction(taskId: string, newStatus: TaskStatus) {
   await db
     .update(tasks)
     .set({ status: newStatus, completedAt: newStatus === 'done' ? new Date() : null })
-    .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId)));
+    .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId), isNull(tasks.externalProvider)));
 
   revalidatePath('/');
 }
@@ -381,7 +383,7 @@ export async function updateTaskTitleAction(taskId: string, title: string) {
   await db
     .update(tasks)
     .set({ title: cleanTitle, updatedAt: new Date() })
-    .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId)));
+    .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId), isNull(tasks.externalProvider)));
 
   revalidatePath('/');
 }
@@ -392,7 +394,7 @@ export async function deleteTaskAction(taskId: string) {
   const db = getDb();
   await db
     .delete(tasks)
-    .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId)));
+    .where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId), isNull(tasks.externalProvider)));
 
   revalidatePath('/');
 }

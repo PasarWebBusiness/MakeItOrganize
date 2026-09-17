@@ -12,6 +12,9 @@ import {
   resources,
 } from '@/db/schema';
 import { requireDefaultWorkspace } from '@/lib/authorization';
+import { getGoogleDriveAccessToken } from '@/lib/google-identity';
+import { GoogleDriveProvider, MAX_IMPORT_BYTES, validateDriveImport, type GoogleDriveFile } from '@/lib/google-drive';
+import type { DriveFileCandidate } from '@/lib/types';
 
 function cleanText(value: string, label: string, limit: number) {
   const result = value.trim();
@@ -200,4 +203,96 @@ export async function deleteFileAction(id: string) {
   await db.update(resources).set({ deletedAt: new Date(), updatedAt: new Date() }).where(and(eq(resources.id, id), eq(resources.workspaceId, workspaceId), eq(resources.type, 'file')));
   await audit(workspaceId, user.id, 'menghapus file', 'file', id, target?.name ?? 'File');
   revalidatePath('/');
+}
+
+export async function listGoogleDriveFilesAction(pageToken?: string) {
+  const { user, workspaceId } = await requireDefaultWorkspace('read');
+  const { accessToken } = await getGoogleDriveAccessToken(user.id, workspaceId);
+  const result = await new GoogleDriveProvider().listFiles({
+    accessToken,
+    pageToken: pageToken?.slice(0, 2_000) || undefined,
+  });
+  return {
+    files: result.files as DriveFileCandidate[],
+    nextPageToken: result.nextPageToken,
+  };
+}
+
+function checksumHex(buffer: ArrayBuffer) {
+  return crypto.subtle.digest('SHA-256', buffer).then((digest) =>
+    Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(''),
+  );
+}
+
+export async function importGoogleDriveFileAction(data: { fileId: string; courseName?: string }) {
+  const { user, workspaceId } = await requireDefaultWorkspace('create');
+  const fileId = cleanText(data.fileId, 'ID file Drive', 300);
+  const { connection, accessToken } = await getGoogleDriveAccessToken(user.id, workspaceId);
+  const provider = new GoogleDriveProvider();
+  const metadata = await provider.getFile({ accessToken, fileId }) as GoogleDriveFile;
+  validateDriveImport(metadata);
+
+  const response = await provider.downloadFile({ accessToken, fileId });
+  const declaredLength = Number(response.headers.get('content-length') ?? 0);
+  if (declaredLength > MAX_IMPORT_BYTES) throw new Error('Ukuran file maksimal 25 MB');
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength > MAX_IMPORT_BYTES) throw new Error('Ukuran file maksimal 25 MB');
+  const checksum = await checksumHex(buffer);
+  const externalId = `${connection.id}:${fileId}`;
+  const db = getDb();
+  const [existing] = await db.select({ id: resources.id }).from(resources).where(and(
+    eq(resources.workspaceId, workspaceId),
+    eq(resources.externalProvider, 'google_drive'),
+    eq(resources.externalId, externalId),
+  )).limit(1);
+  const resourceId = existing?.id ?? crypto.randomUUID();
+  const [latest] = existing
+    ? await db.select({ version: resourceVersions.version }).from(resourceVersions).where(eq(resourceVersions.resourceId, resourceId)).orderBy(desc(resourceVersions.version)).limit(1)
+    : [];
+  const version = (latest?.version ?? 0) + 1;
+  const storageKey = `${workspaceId}/resources/${resourceId}/v${version}/${crypto.randomUUID()}`;
+  await env.FILES.put(storageKey, buffer, { httpMetadata: { contentType: metadata.mimeType } });
+  const now = new Date();
+
+  if (existing) {
+    await db.update(resources).set({
+      name: metadata.name,
+      courseId: await courseIdFor(workspaceId, data.courseName),
+      mediaType: metadata.mimeType,
+      byteSize: buffer.byteLength,
+      state: 'ready',
+      externalUrl: metadata.webViewLink || null,
+      deletedAt: null,
+      updatedAt: now,
+    }).where(and(eq(resources.id, resourceId), eq(resources.workspaceId, workspaceId)));
+  } else {
+    await db.insert(resources).values({
+      id: resourceId,
+      workspaceId,
+      courseId: await courseIdFor(workspaceId, data.courseName),
+      ownerId: user.id,
+      type: 'file',
+      name: metadata.name,
+      mediaType: metadata.mimeType,
+      byteSize: buffer.byteLength,
+      state: 'ready',
+      externalProvider: 'google_drive',
+      externalId,
+      externalUrl: metadata.webViewLink || null,
+    });
+  }
+  await db.insert(resourceVersions).values({
+    id: crypto.randomUUID(), resourceId, version, storageKey, checksum,
+    createdBy: user.id, createdAt: now,
+  });
+  await audit(workspaceId, user.id, existing ? 'mengimpor versi baru dari Google Drive' : 'mengimpor file dari Google Drive', 'file', resourceId, metadata.name);
+  revalidatePath('/');
+  return {
+    id: resourceId,
+    name: metadata.name,
+    type: metadata.name.split('.').at(-1)?.toUpperCase() || 'FILE',
+    size: `${Math.max(1, Math.round(buffer.byteLength / 1024))} KB`,
+    course: data.courseName || 'Belum diatur',
+    updated: 'Baru saja',
+  };
 }

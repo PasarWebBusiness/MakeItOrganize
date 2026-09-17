@@ -44,7 +44,7 @@ import {
   updateCourseAction,
   updateTaskTitleAction,
 } from '@/app/actions/core';
-import { syncGoogleCalendarAction } from '@/app/actions/integrations';
+import { syncGoogleCalendarAction, syncGoogleTasksAction } from '@/app/actions/integrations';
 import {
   createNoteAction,
   deleteFileAction,
@@ -54,6 +54,8 @@ import {
   updateNoteAction,
   uploadFileAction,
   saveCanvasAction,
+  importGoogleDriveFileAction,
+  listGoogleDriveFilesAction,
 } from '@/app/actions/resources';
 import type {
   Activity,
@@ -63,6 +65,7 @@ import type {
   FileItem,
   Note,
   NotificationItem,
+  DriveFileCandidate,
   Task,
   ViewKey,
 } from '@/lib/types';
@@ -220,6 +223,8 @@ export function WorkspaceApp({
     grantedScopes: string[];
     status?: 'active' | 'reauth_required' | 'revoked' | 'error';
     calendarEnabled: boolean;
+    tasksEnabled: boolean;
+    driveEnabled: boolean;
     lastSyncedAt?: string;
   };
 }) {
@@ -335,7 +340,7 @@ export function WorkspaceApp({
 
   const toggleTask = (id: string) => {
     const target = tasks.find((t) => t.id === id);
-    if (!target) return;
+    if (!target || target.readOnly) return;
     const newStatus = target.status === 'done' ? 'todo' : 'done';
     
     // Optimistic UI
@@ -360,7 +365,7 @@ export function WorkspaceApp({
 
   const editTask = (id: string, patch: Partial<Task>) => {
     const target = tasks.find((task) => task.id === id);
-    if (!target) return;
+    if (!target || target.readOnly) return;
 
     setTasks((current) =>
       current.map((task) => (task.id === id ? { ...task, ...patch } : task)),
@@ -410,7 +415,7 @@ export function WorkspaceApp({
 
   const deleteTask = (id: string) => {
     const target = tasks.find((t) => t.id === id);
-    if (!target) return;
+    if (!target || target.readOnly) return;
     const targetIndex = tasks.findIndex((task) => task.id === id);
     
     // Optimistic UI
@@ -707,6 +712,15 @@ export function WorkspaceApp({
     }
   };
 
+  const syncGoogleTasks = async () => {
+    try {
+      return await syncGoogleTasksAction();
+    } catch (error) {
+      console.error(error);
+      return { ok: false as const, synced: 0, removed: 0, skipped: 0 };
+    }
+  };
+
   const deleteFile = async (id: string) => {
     const target = files.find((f) => f.id === id);
     setFiles((all) => all.filter((f) => f.id !== id));
@@ -751,6 +765,22 @@ export function WorkspaceApp({
       const id = await uploadFileAction(formData);
       setFiles((all) => [{ id, name: file.name, type: file.name.split('.').at(-1)?.toUpperCase() || 'FILE', size: `${Math.max(1, Math.round(file.size / 1024))} KB`, course: courseName || 'Belum diatur', updated: 'Baru saja' }, ...all]);
     }
+  };
+
+  const listDriveFiles = async (pageToken?: string): Promise<{ files: DriveFileCandidate[]; nextPageToken?: string; error?: string }> => {
+    try { return await listGoogleDriveFilesAction(pageToken); }
+    catch (error) {
+      console.error(error);
+      return { files: [], error: 'File Google Drive belum dapat dimuat. Hubungkan ulang akun atau coba lagi.' };
+    }
+  };
+
+  const importDriveFile = async (fileId: string, courseName: string) => {
+    try {
+      const imported = await importGoogleDriveFileAction({ fileId, courseName });
+      setFiles((all) => [imported, ...all.filter((file) => file.id !== imported.id)]);
+      return true;
+    } catch (error) { console.error(error); return false; }
   };
 
   const saveCanvas = async (strokes: string) => {
@@ -988,6 +1018,8 @@ export function WorkspaceApp({
               onEdit={editTask}
               onDelete={deleteTask}
               onAdd={() => setCreateOpen(true)}
+              googleConnection={initialGoogleConnection}
+              onGoogleSync={syncGoogleTasks}
             />
           )}
           {(view === 'courses' || view === 'course-detail') && (
@@ -1014,6 +1046,9 @@ export function WorkspaceApp({
               onDelete={deleteFile}
               onRename={renameFile}
               onUpload={uploadFiles}
+              googleConnection={initialGoogleConnection}
+              onDriveList={listDriveFiles}
+              onDriveImport={importDriveFile}
             />
           )}
           {view === 'notes' && (

@@ -58,6 +58,7 @@ try {
   process.stdout.write('Google OAuth configuration: siap\n');
   process.stdout.write(`Origin: ${authRedirect.origin}\n`);
   process.stdout.write('Scopes login: openid email profile\n');
+  process.stdout.write('Scopes integrasi incremental: Calendar read-only, Tasks read-only, Drive read-only\n');
   process.stdout.write('Secret values: ditemukan dan tidak ditampilkan\n');
 } catch (error) {
   const detail = error?.code === 'ENOENT'
